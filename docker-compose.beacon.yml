@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  beacon:
+    image: amir20/beacon:latest
+    deploy:
+      labels:
+        traefik.enable: 'true'
+        traefik.http.routers.beacon.rule: Host(`b.dozzle.dev`)        
+        traefik.http.services.beacon.loadbalancer.server.port: 4000 
+        traefik.http.routers.beacon.entrypoints: websecure
+        traefik.http.routers.beacon.tls.certresolver: myresolver           
+    networks:
+      - web    
+    volumes:
+      - /data/beacon:/data  
+networks:
+  web:
+    external: true
