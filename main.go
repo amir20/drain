@@ -32,15 +32,15 @@ type BeaconEvent struct {
 type RowType struct {
 	Browser           string
 	AuthProvider      string
+	RemoteIP          string
+	Version           string
 	RemoteHostLength  int
 	HasDocumentation  bool
 	FilterLength      int
-	Version           string
 	HasCustomAddress  bool
 	HasCustomBase     bool
 	HasHostname       bool
 	RunningContainers int
-	RemoteIP          string
 }
 
 func dataCreate(w http.ResponseWriter, r *http.Request) {
@@ -86,11 +86,11 @@ func main() {
 	wg.Add(1)
 	go func() {
 		for {
-			file, err := os.Create(fmt.Sprintf("data/data-%d.parquet", time.Now().Unix()))
+			file, err := os.Create(fmt.Sprintf("data/data-%d.temp", time.Now().Unix()))
 			if err != nil {
 				log.Fatal(err)
 			}
-			writer := parquet.NewGenericWriter[RowType](file)
+			writer := parquet.NewGenericWriter[RowType](file, parquet.Compression(&parquet.Zstd))
 			i := 0
 			closed := false
 
@@ -107,7 +107,7 @@ func main() {
 				case row, ok := <-channel:
 					if ok {
 						i++
-						log.Printf("Writing row %+v", row)
+						// log.Printf("Writing row %+v", row)
 						writer.Write([]RowType{row})
 					} else {
 						closed = true
@@ -121,9 +121,10 @@ func main() {
 			}
 
 			if i > 0 {
-				log.Println("Closing file")
+				log.Println("Writing to file")
 				writer.Close()
 				file.Close()
+				os.Rename(file.Name(), fmt.Sprintf("data/data-%s.parquet", time.Now().Format(time.RFC3339)))
 			} else {
 				log.Println("Removing empty file")
 				file.Close()
