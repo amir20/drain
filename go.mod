@@ -1,4 +1,4 @@
-module github.com/amir20/dozzle-beacon
+module github.com/amir20/drain
 
 go 1.21.4
 

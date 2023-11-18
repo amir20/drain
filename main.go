@@ -4,16 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"os/signal"
-	"sync"
 	"syscall"
-	"time"
 
-	"github.com/parquet-go/parquet-go"
+	"github.com/amir20/drain/internal/writer"
 )
 
 type BeaconEvent struct {
@@ -27,20 +23,6 @@ type BeaconEvent struct {
 	HasCustomBase     bool   `json:"hasCustomBase"`
 	HasHostname       bool   `json:"hasHostname"`
 	RunningContainers int    `json:"runningContainers"`
-}
-
-type RowType struct {
-	Browser           string
-	AuthProvider      string
-	RemoteIP          string
-	Version           string
-	RemoteHostLength  int
-	HasDocumentation  bool
-	FilterLength      int
-	HasCustomAddress  bool
-	HasCustomBase     bool
-	HasHostname       bool
-	RunningContainers int
 }
 
 func dataCreate(w http.ResponseWriter, r *http.Request) {
@@ -57,7 +39,7 @@ func dataCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	row := RowType{
+	row := writer.WriterRow{
 		Browser:           b.Browser,
 		AuthProvider:      b.AuthProvider,
 		RemoteHostLength:  b.RemoteHostLength,
@@ -78,67 +60,11 @@ func dataCreate(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Created"))
 }
 
-var channel chan RowType
+var channel chan writer.WriterRow
 
 func main() {
-	channel = make(chan RowType)
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		for {
-			file, err := os.Create(fmt.Sprintf("data/data-%d.temp", time.Now().Unix()))
-			if err != nil {
-				log.Fatal(err)
-			}
-			writer := parquet.NewGenericWriter[RowType](file, parquet.Compression(&parquet.Zstd))
-			i := 0
-			closed := false
-
-		loop:
-			for {
-				context, cancel := context.WithDeadline(context.Background(), time.Now().Add(5*time.Second))
-				defer cancel()
-				select {
-				case <-context.Done():
-					if i > 0 {
-						break loop
-					}
-					continue
-				case row, ok := <-channel:
-					if ok {
-						i++
-						// log.Printf("Writing row %+v", row)
-						writer.Write([]RowType{row})
-					} else {
-						closed = true
-						break loop
-					}
-				}
-
-				if i > 100000 {
-					break
-				}
-			}
-
-			if i > 0 {
-				log.Println("Writing to file")
-				writer.Close()
-				file.Close()
-				os.Rename(file.Name(), fmt.Sprintf("data/data-%s.parquet", time.Now().Format(time.RFC3339)))
-			} else {
-				log.Println("Removing empty file")
-				file.Close()
-				os.Remove(file.Name())
-			}
-
-			if closed {
-				log.Println("Closing")
-				break
-			}
-		}
-
-		wg.Done()
-	}()
+	writer := writer.NewParquetWriter()
+	channel = writer.Start()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/data", dataCreate)
@@ -156,15 +82,13 @@ func main() {
 			log.Fatalf("listen and serve returned err: %v", err)
 		}
 	}()
-
 	<-ctx.Done()
 
 	log.Println("got interruption signal")
 	if err := srv.Shutdown(context.TODO()); err != nil {
 		log.Printf("server shutdown returned an err: %v\n", err)
 	}
-	close(channel)
 	log.Println("Waiting")
-	wg.Wait()
+	writer.Stop()
 	log.Println("Done")
 }
