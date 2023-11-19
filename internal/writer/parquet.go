@@ -63,9 +63,6 @@ func (p *ParquetWriter) Start() chan WriterRow {
 				case row, ok := <-p.channel:
 					if ok {
 						i++
-						//
-						log.Println("Got row")
-						log.Printf("Writing row %+v", row)
 						writer.Write([]WriterRow{row})
 					} else {
 						closed = true
@@ -79,7 +76,6 @@ func (p *ParquetWriter) Start() chan WriterRow {
 			}
 
 			if i > 0 {
-				log.Println("Writing to file")
 				writer.Close()
 				file.Close()
 				os.Rename(file.Name(), fmt.Sprintf("data/data-%s.parquet", time.Now().Format(time.RFC3339)))
@@ -90,7 +86,6 @@ func (p *ParquetWriter) Start() chan WriterRow {
 			}
 
 			if closed {
-				log.Println("Closing")
 				break
 			}
 		}
