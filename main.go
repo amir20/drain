@@ -12,7 +12,12 @@ import (
 	"github.com/amir20/drain/internal/writer"
 )
 
+var (
+	version = "head"
+)
+
 func main() {
+	log.Printf("Starting drain version %s\n", version)
 	writer := writer.NewParquetWriter()
 	channel := writer.Start()
 	srv := web.NewHTTPServer(channel)

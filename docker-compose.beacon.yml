@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   beacon:
-    image: amir20/drain:latest
+    image: amir20/drain:main
     deploy:
       labels:
         traefik.enable: 'true'

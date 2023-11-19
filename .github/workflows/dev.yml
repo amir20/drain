@@ -5,7 +5,7 @@ on:
   pull_request:
     branches:
       - main
-name: Push container
+name: Build & Deploy
 jobs:
   buildx:
     name: Push branches and PRs
@@ -42,3 +42,15 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+  deploy:
+    runs-on: ubuntu-latest
+    name: 'Deploy to server'
+    steps:
+    - uses: arwynfr/actions-docker-context@v2
+      with:
+        docker_host: 'ssh://root@b.dozzle.dev'
+        context_name: 'beacon'
+        ssh_cert: ${{ secrets.SSH_CERT }}
+        ssh_key: ${{ secrets.SSH_KEY }}
+    # - run: docker --context beacon stack deploy --compose-file stack/docker-compose.yml my-stack
+    - run: docker --context beacon stack ls
