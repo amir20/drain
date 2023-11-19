@@ -7,7 +7,7 @@ on:
       - main
 name: Build & Deploy
 jobs:
-  buildx:
+  build:
     name: Push branches and PRs
     runs-on: ubuntu-latest
     if: ${{ !github.event.repository.fork && !github.event.pull_request.head.repo.fork && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == 'amir20/dozzle') }}
@@ -43,12 +43,13 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
   deploy:
+    needs: [build]
     runs-on: ubuntu-latest
-    name: 'Deploy to server'
+    name: Deploy to server
     steps:
     - uses: arwynfr/actions-docker-context@v2
       with:
-        docker_host: 'ssh://root@b.dozzle.dev'
+        docker_host: ssh://root@b.dozzle.dev
         context_name: 'beacon'
         ssh_cert: ${{ secrets.SSH_CERT }}
         ssh_key: ${{ secrets.SSH_KEY }}
