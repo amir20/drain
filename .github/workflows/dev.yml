@@ -53,5 +53,4 @@ jobs:
         context_name: 'beacon'
         ssh_cert: ${{ secrets.SSH_CERT }}
         ssh_key: ${{ secrets.SSH_KEY }}
-    # - run: docker --context beacon stack deploy --compose-file stack/docker-compose.yml my-stack
-    - run: docker --context beacon stack ls
+    - run: docker --context beacon stack deploy --compose-file docker-compose.beacon.yml data
