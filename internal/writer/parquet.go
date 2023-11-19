@@ -12,7 +12,7 @@ import (
 )
 
 type WriterRow struct {
-	Browser           string
+	CreatedAt         time.Time
 	AuthProvider      string
 	RemoteIP          string
 	Version           string
@@ -23,6 +23,7 @@ type WriterRow struct {
 	HasCustomBase     bool
 	HasHostname       bool
 	RunningContainers int
+	Browser           string
 }
 
 type ParquetWriter struct {

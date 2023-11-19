@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/amir20/drain/internal/writer"
 )
@@ -31,6 +32,7 @@ func NewHTTPServer(channel chan<- writer.WriterRow) *http.Server {
 		}
 
 		row := writer.WriterRow{
+			CreatedAt:         time.Now(),
 			Version:           beaconEvent.Version,
 			Browser:           beaconEvent.Browser,
 			AuthProvider:      beaconEvent.AuthProvider,
