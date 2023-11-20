@@ -3,13 +3,15 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
+
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/amir20/drain/internal/web"
 	"github.com/amir20/drain/internal/writer"
+	"go.uber.org/zap"
 )
 
 var (
@@ -17,24 +19,36 @@ var (
 )
 
 func main() {
-	log.Printf("Starting drain version %s\n", version)
-	writer := writer.NewParquetWriter()
+	logger, _ := zap.NewDevelopment()
+	defer logger.Sync()
+	sugar := logger.Sugar()
+
+	sugar.Infof("Starting drain %s", version)
+
+	if _, err := os.Stat("./data"); os.IsNotExist(err) {
+		sugar.Info("Creating data directory")
+		if err := os.Mkdir("./data", 0755); err != nil {
+			sugar.Fatal(err)
+		}
+	}
+
+	writer := writer.NewParquetWriter(sugar)
 	channel := writer.Start()
-	srv := web.NewHTTPServer(channel)
+	srv := web.NewHTTPServer(channel, sugar)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	go func() {
-		log.Println("Accepting connections now on port 4000...")
+		sugar.Infof("Listening on %s", srv.Addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("listen and serve returned err: %v", err)
+			sugar.Fatalf("server listen returned err: %w", err)
 		}
 	}()
 	<-ctx.Done()
 
 	if err := srv.Shutdown(context.TODO()); err != nil {
-		log.Printf("Server shutdown returned an err: %v\n", err)
+		sugar.Fatalf("server shutdown returned err: %w", err)
 	}
 	writer.Stop()
 }

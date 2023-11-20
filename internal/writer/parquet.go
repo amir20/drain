@@ -3,12 +3,13 @@ package writer
 import (
 	"context"
 	"fmt"
-	"log"
+
 	"os"
 	"sync"
 	"time"
 
 	"github.com/parquet-go/parquet-go"
+	"go.uber.org/zap"
 )
 
 type WriterRow struct {
@@ -29,12 +30,20 @@ type WriterRow struct {
 type ParquetWriter struct {
 	channel chan WriterRow
 	wg      *sync.WaitGroup
+	logger  *zap.SugaredLogger
+	maxRows int
+	maxIdle time.Duration
+	maxWait time.Duration
 }
 
-func NewParquetWriter() *ParquetWriter {
+func NewParquetWriter(logger *zap.SugaredLogger) *ParquetWriter {
 	return &ParquetWriter{
 		channel: make(chan WriterRow),
 		wg:      &sync.WaitGroup{},
+		logger:  logger,
+		maxRows: 50000,
+		maxIdle: 60 * time.Second,
+		maxWait: 1 * time.Hour,
 	}
 }
 
@@ -45,18 +54,20 @@ func (p *ParquetWriter) Start() chan WriterRow {
 		for {
 			file, err := os.Create(fmt.Sprintf("data/data-%d.temp", time.Now().Unix()))
 			if err != nil {
-				log.Fatal(err)
+				p.logger.Fatalf("failed to create file: %w", err)
 			}
 			writer := parquet.NewGenericWriter[WriterRow](file, parquet.Compression(&parquet.Zstd))
 			i := 0
 			closed := false
 
+			cxt, cancel := context.WithDeadline(context.Background(), time.Now().Add(p.maxIdle))
+			defer cancel()
 		loop:
 			for {
-				context, cancel := context.WithDeadline(context.Background(), time.Now().Add(5*time.Second))
-				defer cancel()
+				idleContext, idleCancel := context.WithDeadline(cxt, time.Now().Add(p.maxIdle))
+				defer idleCancel()
 				select {
-				case <-context.Done():
+				case <-idleContext.Done():
 					if i > 0 {
 						break loop
 					}
@@ -71,17 +82,18 @@ func (p *ParquetWriter) Start() chan WriterRow {
 					}
 				}
 
-				if i > 100000 {
+				if i > p.maxRows {
 					break
 				}
 			}
 
 			if i > 0 {
+				p.logger.Infof("writing %d rows", i)
 				writer.Close()
 				file.Close()
 				os.Rename(file.Name(), fmt.Sprintf("data/data-%s.parquet", time.Now().Format(time.RFC3339)))
 			} else {
-				log.Println("Removing empty file")
+				p.logger.Info("removing empty file")
 				file.Close()
 				os.Remove(file.Name())
 			}

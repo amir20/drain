@@ -3,9 +3,11 @@ package web
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/amir20/drain/internal/writer"
+	"go.uber.org/zap"
 )
 
 type BeaconEvent struct {
@@ -21,7 +23,7 @@ type BeaconEvent struct {
 	RunningContainers int    `json:"runningContainers"`
 }
 
-func NewHTTPServer(channel chan<- writer.WriterRow) *http.Server {
+func NewHTTPServer(channel chan<- writer.WriterRow, logger *zap.SugaredLogger) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/event", func(w http.ResponseWriter, r *http.Request) {
 		var beaconEvent BeaconEvent
@@ -50,8 +52,12 @@ func NewHTTPServer(channel chan<- writer.WriterRow) *http.Server {
 		w.WriteHeader(http.StatusCreated)
 	})
 
+	addr, exists := os.LookupEnv("DRAIN_ADDR")
+	if !exists {
+		addr = ":4000"
+	}
 	return &http.Server{
-		Addr:    ":4000",
+		Addr:    addr,
 		Handler: mux,
 	}
 }
