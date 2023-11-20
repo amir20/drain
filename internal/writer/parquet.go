@@ -60,7 +60,7 @@ func (p *ParquetWriter) Start() chan WriterRow {
 			i := 0
 			closed := false
 
-			cxt, cancel := context.WithDeadline(context.Background(), time.Now().Add(p.maxIdle))
+			cxt, cancel := context.WithDeadline(context.Background(), time.Now().Add(p.maxWait))
 			defer cancel()
 		loop:
 			for {
