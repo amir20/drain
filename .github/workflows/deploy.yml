@@ -1,15 +1,13 @@
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+    tags:
+      - "v*"
 name: Build & Deploy
 jobs:
   build:
     name: Push branches and PRs
-    runs-on: ubuntu-latest    
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.repository.fork && !github.event.pull_request.head.repo.fork && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == 'amir20/drain') }}
     steps:
       - name: Docker meta
         id: meta
@@ -33,3 +31,16 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+  deploy:
+    needs: [build]
+    runs-on: ubuntu-latest
+    name: Deploy to server
+    steps:
+    - uses: actions/checkout@v4
+    - uses: arwynfr/actions-docker-context@v2
+      with:
+        docker_host: ssh://root@b.dozzle.dev
+        context_name: 'beacon'
+        ssh_cert: ${{ secrets.SSH_CERT }}
+        ssh_key: ${{ secrets.SSH_KEY }}
+    - run: docker --context beacon stack deploy --compose-file docker-compose.beacon.yml data
