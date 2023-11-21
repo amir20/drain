@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/amir20/drain/internal/writer"
+	"github.com/amir20/drain/internal"
 	"go.uber.org/zap"
 )
 
@@ -23,7 +23,7 @@ type BeaconEvent struct {
 	RunningContainers int    `json:"runningContainers"`
 }
 
-func NewHTTPServer(channel chan<- writer.WriterRow, logger *zap.SugaredLogger) *http.Server {
+func NewHTTPServer(channel chan<- internal.Event, logger *zap.SugaredLogger) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/event", func(w http.ResponseWriter, r *http.Request) {
 		var beaconEvent BeaconEvent
@@ -33,7 +33,7 @@ func NewHTTPServer(channel chan<- writer.WriterRow, logger *zap.SugaredLogger) *
 			return
 		}
 
-		row := writer.WriterRow{
+		row := internal.Event{
 			CreatedAt:         time.Now(),
 			Version:           beaconEvent.Version,
 			Browser:           beaconEvent.Browser,
