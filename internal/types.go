@@ -7,7 +7,7 @@ type Event struct {
 	AuthProvider      string
 	RemoteIP          string
 	Version           string
-	RemoteHostLength  int
+	Clients           int
 	HasDocumentation  bool
 	FilterLength      int
 	HasCustomAddress  bool

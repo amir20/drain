@@ -16,7 +16,7 @@ type BeaconEvent struct {
 	AuthProvider      string `json:"authProvider"`
 	HasDocumentation  bool   `json:"hasDocumentation"`
 	FilterLength      int    `json:"filterLength"`
-	RemoteHostLength  int    `json:"remoteHostLength"`
+	Clients           int    `json:"clients"`
 	HasCustomAddress  bool   `json:"hasCustomAddress"`
 	HasCustomBase     bool   `json:"hasCustomBase"`
 	HasHostname       bool   `json:"hasHostname"`
@@ -40,7 +40,7 @@ func NewHTTPServer(channel chan<- internal.Event, logger *zap.SugaredLogger) *ht
 			AuthProvider:      beaconEvent.AuthProvider,
 			HasDocumentation:  beaconEvent.HasDocumentation,
 			FilterLength:      beaconEvent.FilterLength,
-			RemoteHostLength:  beaconEvent.RemoteHostLength,
+			Clients:           beaconEvent.Clients,
 			HasCustomAddress:  beaconEvent.HasCustomAddress,
 			HasCustomBase:     beaconEvent.HasCustomBase,
 			HasHostname:       beaconEvent.HasHostname,
