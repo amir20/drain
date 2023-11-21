@@ -8,27 +8,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/amir20/drain/internal"
+	"github.com/amir20/drain/internal/ga"
 	"github.com/parquet-go/parquet-go"
 	"go.uber.org/zap"
 )
 
-type WriterRow struct {
-	CreatedAt         time.Time
-	AuthProvider      string
-	RemoteIP          string
-	Version           string
-	RemoteHostLength  int
-	HasDocumentation  bool
-	FilterLength      int
-	HasCustomAddress  bool
-	HasCustomBase     bool
-	HasHostname       bool
-	RunningContainers int
-	Browser           string
-}
-
 type ParquetWriter struct {
-	channel chan WriterRow
+	channel chan internal.Event
 	wg      *sync.WaitGroup
 	logger  *zap.SugaredLogger
 	maxRows int
@@ -38,16 +25,16 @@ type ParquetWriter struct {
 
 func NewParquetWriter(logger *zap.SugaredLogger) *ParquetWriter {
 	return &ParquetWriter{
-		channel: make(chan WriterRow),
+		channel: make(chan internal.Event),
 		wg:      &sync.WaitGroup{},
 		logger:  logger,
 		maxRows: 50000,
-		maxIdle: 60 * time.Second,
+		maxIdle: 5 * time.Minute,
 		maxWait: 1 * time.Hour,
 	}
 }
 
-func (p *ParquetWriter) Start() chan WriterRow {
+func (p *ParquetWriter) Start() chan internal.Event {
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
@@ -56,7 +43,7 @@ func (p *ParquetWriter) Start() chan WriterRow {
 			if err != nil {
 				p.logger.Fatalf("failed to create file: %w", err)
 			}
-			writer := parquet.NewGenericWriter[WriterRow](file, parquet.Compression(&parquet.Zstd))
+			writer := parquet.NewGenericWriter[internal.Event](file, parquet.Compression(&parquet.Zstd))
 			i := 0
 			closed := false
 
@@ -75,7 +62,8 @@ func (p *ParquetWriter) Start() chan WriterRow {
 				case row, ok := <-p.channel:
 					if ok {
 						i++
-						writer.Write([]WriterRow{row})
+						writer.Write([]internal.Event{row})
+						go ga.SendEvent(row, "eventStream", p.logger)
 					} else {
 						closed = true
 						break loop

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 
 	"net/http"
 	"os"
@@ -18,8 +19,14 @@ var (
 	version = "head"
 )
 
+var dev = flag.Bool("dev", false, "enables dev mode")
+
 func main() {
-	logger, _ := zap.NewDevelopment()
+	flag.Parse()
+	logger, _ := zap.NewProduction()
+	if *dev {
+		logger, _ = zap.NewDevelopment()
+	}
 	defer logger.Sync()
 	sugar := logger.Sugar()
 
