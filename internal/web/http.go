@@ -40,7 +40,7 @@ func NewHTTPServer(channel chan<- internal.Event, logger *zap.SugaredLogger) *ht
 			AuthProvider:      beaconEvent.AuthProvider,
 			HasDocumentation:  beaconEvent.HasDocumentation,
 			FilterLength:      beaconEvent.FilterLength,
-			RemoteHostLength:  beaconEvent.RemoteHostLength,
+			Clients:           beaconEvent.Clients,
 			HasCustomAddress:  beaconEvent.HasCustomAddress,
 			HasCustomBase:     beaconEvent.HasCustomBase,
 			HasHostname:       beaconEvent.HasHostname,
