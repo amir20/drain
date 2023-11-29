@@ -2,6 +2,7 @@ package writer
 
 import (
 	"bufio"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -41,12 +42,14 @@ func (p *JsonWriter) Start() chan internal.Event {
 	go func() {
 		defer p.wg.Done()
 		for {
-			file, err := os.Create(fmt.Sprintf("data/data-%d.temp", time.Now().Unix()))
+			file, err := os.Create(fmt.Sprintf("data/data-%d.json.gz.temp", time.Now().Unix()))
 			if err != nil {
 				p.logger.Fatalf("failed to create file: %w", err)
 			}
+
 			bw := bufio.NewWriter(file)
-			writer := json.NewEncoder(bw)
+			gzipWriter := gzip.NewWriter(bw)
+			writer := json.NewEncoder(gzipWriter)
 			i := 0
 			closed := false
 
@@ -80,9 +83,10 @@ func (p *JsonWriter) Start() chan internal.Event {
 
 			if i > 0 {
 				p.logger.Infof("writing %d rows", i)
+				gzipWriter.Close()
 				bw.Flush()
 				file.Close()
-				os.Rename(file.Name(), fmt.Sprintf("data/data-%s.jsonl", time.Now().Format(time.RFC3339)))
+				os.Rename(file.Name(), fmt.Sprintf("data/data-%s.json.gz", time.Now().Format(time.RFC3339)))
 			} else {
 				p.logger.Info("removing empty file")
 				file.Close()
