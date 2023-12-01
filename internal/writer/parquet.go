@@ -63,7 +63,9 @@ func (p *ParquetWriter) Start() chan internal.Event {
 					if ok {
 						i++
 						writer.Write([]internal.Event{row})
-						go ga.SendEvent(row, "eventStream", p.logger)
+						if row.Name != "" {
+							go ga.SendEvent(row, row.Name, p.logger)
+						}
 					} else {
 						closed = true
 						break loop
