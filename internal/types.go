@@ -3,6 +3,7 @@ package internal
 import "time"
 
 type Event struct {
+	Name              string
 	CreatedAt         time.Time
 	AuthProvider      string
 	RemoteIP          string
@@ -15,4 +16,5 @@ type Event struct {
 	HasHostname       bool
 	RunningContainers int
 	Browser           string
+	HasActions        bool
 }

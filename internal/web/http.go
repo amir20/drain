@@ -11,6 +11,7 @@ import (
 )
 
 type BeaconEvent struct {
+	Name              string `json:"name"`
 	Version           string `json:"version"`
 	Browser           string `json:"browser"`
 	AuthProvider      string `json:"authProvider"`
@@ -20,6 +21,7 @@ type BeaconEvent struct {
 	HasCustomAddress  bool   `json:"hasCustomAddress"`
 	HasCustomBase     bool   `json:"hasCustomBase"`
 	HasHostname       bool   `json:"hasHostname"`
+	HasActions        bool   `json:"hasActions"`
 	RunningContainers int    `json:"runningContainers"`
 }
 
@@ -34,6 +36,7 @@ func NewHTTPServer(channel chan<- internal.Event, logger *zap.SugaredLogger) *ht
 		}
 
 		row := internal.Event{
+			Name:              beaconEvent.Name,
 			CreatedAt:         time.Now(),
 			Version:           beaconEvent.Version,
 			Browser:           beaconEvent.Browser,
@@ -45,6 +48,7 @@ func NewHTTPServer(channel chan<- internal.Event, logger *zap.SugaredLogger) *ht
 			HasCustomBase:     beaconEvent.HasCustomBase,
 			HasHostname:       beaconEvent.HasHostname,
 			RunningContainers: beaconEvent.RunningContainers,
+			HasActions:        beaconEvent.HasActions,
 		}
 		row.RemoteIP = r.Header.Get("X-Forwarded-For")
 		channel <- row
