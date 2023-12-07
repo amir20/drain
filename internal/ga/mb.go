@@ -24,6 +24,7 @@ func SendEvent(row internal.Event, event string, logger *zap.SugaredLogger) erro
 
 	return doRequest(postBody, logger)
 }
+
 func doRequest(body map[string]interface{}, logger *zap.SugaredLogger) error {
 	jsonValue, err := json.Marshal(body)
 	if err != nil {
