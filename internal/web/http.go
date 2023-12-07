@@ -51,6 +51,9 @@ func NewHTTPServer(channel chan<- internal.Event, logger *zap.SugaredLogger) *ht
 			HasActions:        beaconEvent.HasActions,
 		}
 		row.RemoteIP = r.Header.Get("X-Forwarded-For")
+
+		logger.Debugf("Received event: %+v", row)
+
 		channel <- row
 
 		w.WriteHeader(http.StatusCreated)

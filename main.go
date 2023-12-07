@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/amir20/drain/internal"
 	"github.com/amir20/drain/internal/web"
 	"github.com/amir20/drain/internal/writer"
 	"go.uber.org/zap"
@@ -23,9 +24,9 @@ var dev = flag.Bool("dev", false, "enables dev mode")
 
 func main() {
 	flag.Parse()
-	logger, _ := zap.NewProduction()
+	logger := zap.Must(zap.NewProduction())
 	if *dev {
-		logger, _ = zap.NewDevelopment()
+		logger = zap.Must(zap.NewDevelopment(zap.IncreaseLevel(zap.DebugLevel)))
 	}
 	defer logger.Sync()
 	sugar := logger.Sugar()
@@ -41,7 +42,9 @@ func main() {
 
 	writer := writer.NewParquetWriter(sugar)
 	channel := writer.Start()
-	srv := web.NewHTTPServer(channel, sugar)
+
+	events := sendToAllChannels(channel)
+	srv := web.NewHTTPServer(events, sugar)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -58,4 +61,16 @@ func main() {
 		sugar.Fatalf("server shutdown returned err: %w", err)
 	}
 	writer.Stop()
+}
+
+func sendToAllChannels(channels ...chan internal.Event) chan internal.Event {
+	out := make(chan internal.Event)
+	go func() {
+		for event := range out {
+			for _, channel := range channels {
+				channel <- event
+			}
+		}
+	}()
+	return out
 }
