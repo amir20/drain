@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.21.4-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.21.5-alpine AS builder
 
 RUN apk add --no-cache ca-certificates && mkdir /build
 
