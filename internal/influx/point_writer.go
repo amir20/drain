@@ -46,4 +46,5 @@ func WriteEvent(row internal.Event, logger *zap.SugaredLogger) error {
 	if err != nil {
 		panic(err)
 	}
+	return nil
 }
