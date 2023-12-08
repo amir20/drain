@@ -40,10 +40,10 @@ func main() {
 		}
 	}
 
-	writer := writer.NewParquetWriter(sugar)
-	channel := writer.Start()
+	parquetWriter := writer.NewParquetWriter(sugar)
+	influxWriter := writer.NewInfluxWriter(sugar)
 
-	events := sendToAllChannels(channel)
+	events := sendToAllChannels(parquetWriter.Start(), influxWriter.Start())
 	srv := web.NewHTTPServer(events, sugar)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -60,10 +60,10 @@ func main() {
 	if err := srv.Shutdown(context.TODO()); err != nil {
 		sugar.Fatalf("server shutdown returned err: %w", err)
 	}
-	writer.Stop()
+	parquetWriter.Stop()
 }
 
-func sendToAllChannels(channels ...chan internal.Event) chan internal.Event {
+func sendToAllChannels(channels ...chan<- internal.Event) chan internal.Event {
 	out := make(chan internal.Event)
 	go func() {
 		for event := range out {

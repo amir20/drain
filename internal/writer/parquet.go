@@ -34,7 +34,7 @@ func NewParquetWriter(logger *zap.SugaredLogger) *ParquetWriter {
 	}
 }
 
-func (p *ParquetWriter) Start() chan internal.Event {
+func (p *ParquetWriter) Start() chan<- internal.Event {
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
