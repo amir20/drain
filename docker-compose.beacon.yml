@@ -5,15 +5,28 @@ services:
     image: amir20/drain:latest
     deploy:
       labels:
-        traefik.enable: 'true'
-        traefik.http.routers.beacon.rule: Host(`b.dozzle.dev`)        
-        traefik.http.services.beacon.loadbalancer.server.port: 4000 
+        traefik.enable: "true"
+        traefik.http.routers.beacon.rule: Host(`b.dozzle.dev`)
+        traefik.http.services.beacon.loadbalancer.server.port: 4000
         traefik.http.routers.beacon.entrypoints: websecure
-        traefik.http.routers.beacon.tls.certresolver: myresolver           
+        traefik.http.routers.beacon.tls.certresolver: myresolver
     networks:
-      - web    
+      - web
     volumes:
-      - /data/beacon:/data  
+      - /data/beacon:/data
+  dozzle:
+    image: amir20/dozzle:latest
+    deploy:
+      labels:
+        traefik.enable: "true"
+        traefik.http.routers.dozzle.rule: Host(`l.dozzle.dev`)
+        traefik.http.services.dozzle.loadbalancer.server.port: 8080
+        traefik.http.routers.dozzle.entrypoints: websecure
+        traefik.http.routers.dozzle.tls.certresolver: myresolver
+    networks:
+      - web
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 networks:
   web:
     external: true
