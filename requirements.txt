@@ -19,7 +19,7 @@ executing==2.0.1
 fonttools==4.50.0
     # via matplotlib
 ipykernel==6.29.3
-ipython==8.22.2
+ipython==8.23.0
     # via ipykernel
 jedi==0.19.1
     # via ipython
