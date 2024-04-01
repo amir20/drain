@@ -18,7 +18,7 @@ executing==2.0.1
     # via stack-data
 fonttools==4.50.0
     # via matplotlib
-ipykernel==6.29.3
+ipykernel==6.29.4
 ipython==8.23.0
     # via ipykernel
 jedi==0.19.1
