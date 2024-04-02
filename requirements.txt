@@ -6,7 +6,7 @@ asttokens==2.4.1
     # via stack-data
 comm==0.2.2
     # via ipykernel
-contourpy==1.2.0
+contourpy==1.2.1
     # via matplotlib
 cycler==0.12.1
     # via matplotlib
