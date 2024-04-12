@@ -50,7 +50,7 @@ packaging==24.0
     # via
     #   ipykernel
     #   matplotlib
-pandas==2.2.1
+pandas==2.2.2
     # via seaborn
 parso==0.8.3
     # via jedi
