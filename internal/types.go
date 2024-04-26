@@ -9,7 +9,6 @@ type Event struct {
 	RemoteIP          string
 	Version           string
 	Clients           int
-	HasDocumentation  bool
 	FilterLength      int
 	HasCustomAddress  bool
 	HasCustomBase     bool
@@ -17,4 +16,5 @@ type Event struct {
 	RunningContainers int
 	Browser           string
 	HasActions        bool
+	IsSwarmMode       bool
 }
