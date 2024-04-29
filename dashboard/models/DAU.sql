@@ -1,0 +1,1 @@
+SELECT DISTINCT on(RemoteIP,  date_trunc('day', CreatedAt))  date_trunc('day', CreatedAt) as CreatedAt, AuthProvider, "Version", Clients, HasCustomAddress, HasCustomBase, RunningContainers, IsSwarmMode, HasActions from beacon where name = 'events' ORDER by RemoteIP, CreatedAt desc
