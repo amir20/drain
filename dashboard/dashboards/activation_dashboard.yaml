@@ -1,0 +1,73 @@
+# Visit https://docs.rilldata.com/reference/project-files to learn more about Rill project files.
+# This file was generated using AI.
+
+title: Metrics for Activation Table
+model: activation
+timeseries: CreatedAt
+measures:
+  - name: count_activations
+    label: Count of Activations
+    expression: COUNT(*)
+    description: Total number of activations in the table.
+    format_preset: humanize
+    valid_percent_of_total: false
+  # - name: average_days_between_activation
+  #   label: Average Days Between Activation
+  #   expression: AVG(DATEDIFF('day', FirstDate, CreatedAt))
+  #   description: Average number of days between the FirstDate and CreatedAt columns.
+  #   format_preset: humanize
+    # valid_percent_of_total: false
+  # - name: min_activation_date
+  #   label: Minimum Activation Date
+  #   expression: MIN(CreatedAt)
+  #   description: The earliest activation date in the table.
+  #   format_preset: humanize
+  #   valid_percent_of_total: false
+  # - name: max_activation_date
+  #   label: Maximum Activation Date
+  #   expression: MAX(CreatedAt)
+  #   description: The latest activation date in the table.
+  #   format_preset: humanize
+  #   valid_percent_of_total: false
+  # - name: count_unique_remote_ips
+  #   label: Count of Unique Remote IPs
+  #   expression: COUNT(DISTINCT RemoteIP)
+  #   description: Total number of unique RemoteIPs in the table.
+  #   format_preset: humanize
+  #   valid_percent_of_total: false
+  - name: count_activations_per_day
+    label: Count of Activations per Day
+    expression: COUNT(*) / (DATEDIFF('day', MIN(CreatedAt), MAX(CreatedAt)) + 1)
+    description: Average number of activations per day in the table.
+    format_preset: humanize
+    valid_percent_of_total: false
+  # - name: average_activation_hour
+  #   label: Average Activation Hour
+  #   expression: AVG(EXTRACT(hour FROM CreatedAt))
+  #   description: Average hour of the day when activations occur.
+  #   format_preset: humanize
+  #   valid_percent_of_total: false
+  # - name: max_days_to_activate
+  #   label: Maximum Days to Activate
+  #   expression: MAX(DATEDIFF('day', FirstDate, CreatedAt))
+  #   description: Maximum number of days taken to activate after the FirstDate.
+  #   format_preset: humanize
+  #   valid_percent_of_total: false
+  # - name: min_days_to_activate
+  #   label: Minimum Days to Activate
+  #   expression: MIN(DATEDIFF('day', FirstDate, CreatedAt))
+  #   description: Minimum number of days taken to activate after the FirstDate.
+  #   format_preset: humanize
+  #   valid_percent_of_total: false
+available_time_zones:
+  - America/Los_Angeles
+  - America/Chicago
+  - America/New_York
+  - Europe/London
+  - Europe/Paris
+  - Asia/Jerusalem
+  - Europe/Moscow
+  - Asia/Kolkata
+  - Asia/Shanghai
+  - Asia/Tokyo
+  - Australia/Sydney
