@@ -1,1 +1,2 @@
+--@materialize:true
 SELECT * FROM (select RemoteIP, CreatedAt, first(CreatedAt) OVER (PARTITION BY RemoteIP ORDER BY CreatedAt) FirstDate from events) WHERE CreatedAt = FirstDate
