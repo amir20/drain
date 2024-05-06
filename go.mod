@@ -3,7 +3,7 @@ module github.com/amir20/drain
 go 1.22.2
 
 require (
-	github.com/parquet-go/parquet-go v0.20.1
+	github.com/parquet-go/parquet-go v0.21.0
 	go.uber.org/zap v1.27.0
 )
 
