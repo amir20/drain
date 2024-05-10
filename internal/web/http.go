@@ -23,6 +23,8 @@ type BeaconEvent struct {
 	RunningContainers int    `json:"runningContainers"`
 	HasActions        bool   `json:"hasActions"`
 	IsSwarmMode       bool   `json:"isSwarmMode"`
+	ServerVersion     string `json:"serverVersion"`
+	ServerID          string `json:"serverID"`
 }
 
 func NewHTTPServer(channel chan<- internal.Event, logger *zap.SugaredLogger) *http.Server {
@@ -49,6 +51,8 @@ func NewHTTPServer(channel chan<- internal.Event, logger *zap.SugaredLogger) *ht
 			RunningContainers: beaconEvent.RunningContainers,
 			HasActions:        beaconEvent.HasActions,
 			IsSwarmMode:       beaconEvent.IsSwarmMode,
+			ServerVersion:     beaconEvent.ServerVersion,
+			ServerID:          beaconEvent.ServerID,
 		}
 		row.RemoteIP = r.Header.Get("X-Forwarded-For")
 

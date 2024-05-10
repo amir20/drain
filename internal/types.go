@@ -17,4 +17,6 @@ type Event struct {
 	Browser           string
 	HasActions        bool
 	IsSwarmMode       bool
+	ServerVersion     string
+	ServerID          string
 }
