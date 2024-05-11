@@ -1,2 +1,2 @@
 --@materialize:true
-SELECT * FROM (select RemoteIP, CreatedAt, first(CreatedAt) OVER (PARTITION BY RemoteIP ORDER BY CreatedAt) FirstDate from events) WHERE CreatedAt = FirstDate
+SELECT * FROM (select RemoteIP, Clients, IsSwarmMode, "HasActions", "Version", ServerVersion, AuthProvider, CreatedAt, first(CreatedAt) OVER (PARTITION BY CASE WHEN ServerID != '' THEN ServerID ELSE RemoteIP END ORDER BY CreatedAt) FirstDate FROM events) WHERE CreatedAt = FirstDate
