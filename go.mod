@@ -1,6 +1,6 @@
 module github.com/amir20/drain
 
-go 1.22.3
+go 1.22.4
 
 require (
 	github.com/parquet-go/parquet-go v0.22.0
