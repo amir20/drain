@@ -19,4 +19,7 @@ type Event struct {
 	IsSwarmMode       bool
 	ServerVersion     string
 	ServerID          string
+	Mode              string
+	RemoteAgents      int
+	RemoteClients     int
 }
