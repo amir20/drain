@@ -28,6 +28,7 @@ type BeaconEvent struct {
 	Mode              string `json:"mode"`
 	RemoteAgents      int    `json:"remoteAgents"`
 	RemoteClients     int    `json:"remoteClients"`
+	SubCommand        string `json:"subCommand"`
 }
 
 func NewHTTPServer(channel chan<- internal.Event, logger *zap.SugaredLogger) *http.Server {
@@ -59,6 +60,7 @@ func NewHTTPServer(channel chan<- internal.Event, logger *zap.SugaredLogger) *ht
 			Mode:              beaconEvent.Mode,
 			RemoteAgents:      beaconEvent.RemoteAgents,
 			RemoteClients:     beaconEvent.RemoteClients,
+			SubCommand:        beaconEvent.SubCommand,
 			RemoteIP:          r.Header.Get("X-Forwarded-For"),
 		}
 

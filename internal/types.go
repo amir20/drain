@@ -22,4 +22,5 @@ type Event struct {
 	Mode              string
 	RemoteAgents      int
 	RemoteClients     int
+	SubCommand        string
 }
