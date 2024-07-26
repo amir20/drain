@@ -1,0 +1,88 @@
+# Dashboard YAML
+# Reference documentation: https://docs.rilldata.com/reference/project-files/dashboards
+# This file was generated using AI.
+
+type: metrics_view
+title: Starting Dashboard
+model: running
+timeseries: CreatedAt
+dimensions:
+  - label: Authprovider
+    column: AuthProvider
+    description: ""
+  - label: Version
+    column: Version
+    description: ""
+  - label: Hascustomaddress
+    column: HasCustomAddress
+    description: ""
+  - label: Hascustombase
+    column: HasCustomBase
+    description: ""
+  - label: Isswarmmode
+    column: IsSwarmMode
+    description: ""
+  - label: Hasactions
+    column: HasActions
+    description: ""
+  - label: Serverversion
+    column: ServerVersion
+    description: ""
+  - label: Mode
+    column: Mode
+    description: ""
+measures:
+  - name: average_remote_agents
+    label: Average Remote Agents
+    expression: AVG(RemoteAgents)
+    description: Average number of remote agents.
+    format_preset: humanize
+    valid_percent_of_total: false 
+  - name: max_remote_agents
+    label: Max Remote Agents
+    expression: Max(RemoteAgents)
+    description: Max number of remote agents.
+    format_preset: humanize
+    valid_percent_of_total: false 
+  - name: average_remote_clients
+    label: Average Remote Clients
+    expression: AVG(RemoteClients)
+    description: Average number of remote clients.
+    format_preset: humanize
+    valid_percent_of_total: false
+  - name: max_remote_clients
+    label: Max Remote Clients
+    expression: MAX(RemoteClients)
+    description: Max number of remote clients.
+    format_preset: humanize
+    valid_percent_of_total: false  
+available_time_zones:
+  - America/Los_Angeles
+  - America/Chicago
+  - America/New_York
+  - Europe/London
+  - Europe/Paris
+  - Asia/Jerusalem
+  - Europe/Moscow
+  - Asia/Kolkata
+  - Asia/Shanghai
+  - Asia/Tokyo
+  - Australia/Sydney
+available_time_ranges:
+  - PT6H
+  - PT24H
+  - P7D
+  - P14D
+  - P4W
+  - P3M
+  - P12M
+  - rill-TD
+  - rill-WTD
+  - rill-MTD
+  - rill-QTD
+  - rill-YTD
+  - rill-PDC
+  - rill-PWC
+  - rill-PMC
+  - rill-PQC
+  - rill-PYC

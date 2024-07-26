@@ -1,6 +1,6 @@
 # Visit https://docs.rilldata.com/reference/project-files to learn more about Rill project files.
 
-title: Daily Active Users
+title: Daily  Users
 model: DAU
 timeseries: CreatedAt
 measures:
@@ -21,13 +21,7 @@ measures:
     expression: AVG(RunningContainers)
     description: Calculates the average of running containers.
     format_preset: humanize
-    valid_percent_of_total: true
-  - name: max_clients
-    label: Max Number of Clients
-    expression: Max(Clients)
-    description: Calculates the max number of clients.
-    format_preset: humanize
-    valid_percent_of_total: false
+    valid_percent_of_total: true    
   - name: max_containers
     label: Max Running Containers
     expression: MAX(RunningContainers)
