@@ -7,9 +7,6 @@ title: Starting Dashboard
 model: running
 timeseries: CreatedAt
 dimensions:
-  - label: Authprovider
-    column: AuthProvider
-    description: ""
   - label: Version
     column: Version
     description: ""
@@ -30,6 +27,9 @@ dimensions:
     description: ""
   - label: Mode
     column: Mode
+    description: ""
+  - label: SubCommand
+    column: SubCommand
     description: ""
 measures:
   - label: Total records
