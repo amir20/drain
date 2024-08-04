@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"flag"
-
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/amir20/drain/internal"
+	"github.com/amir20/drain/internal/cleanup"
 	"github.com/amir20/drain/internal/web"
 	"github.com/amir20/drain/internal/writer"
 	"go.uber.org/zap"
@@ -21,6 +22,7 @@ var (
 )
 
 var dev = flag.Bool("dev", false, "enables dev mode")
+var clean = flag.Bool("clean-only", false, "only clean the data directory")
 
 func main() {
 	flag.Parse()
@@ -31,6 +33,14 @@ func main() {
 	defer logger.Sync()
 	sugar := logger.Sugar()
 
+	if *clean {
+		sugar.Info("Cleaning data directory")
+		if err := cleanup.Cleanup(sugar); err != nil {
+			sugar.Fatal(err)
+		}
+		return
+	}
+
 	sugar.Infof("Starting drain %s", version)
 
 	if _, err := os.Stat("./data"); os.IsNotExist(err) {
@@ -39,6 +49,17 @@ func main() {
 			sugar.Fatal(err)
 		}
 	}
+
+	daily := time.Tick(24 * time.Hour)
+	go func() {
+		sugar.Infof("Starting cleanup routine")
+		for day := range daily {
+			sugar.Infof("Cleaning data directory at %s", day)
+			if err := cleanup.Cleanup(sugar); err != nil {
+				sugar.Error(err)
+			}
+		}
+	}()
 
 	writer := writer.NewParquetWriter(sugar)
 	channel := writer.Start()
