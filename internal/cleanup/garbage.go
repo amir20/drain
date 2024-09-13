@@ -42,7 +42,7 @@ func Cleanup(logger *zap.SugaredLogger) error {
 	}
 
 	for bucket, files := range buckets {
-		logger.Infof("processing bucket %s", bucket)
+		logger.Infow("merging files", "bucket", bucket)
 		var readers []parquet.RowReader
 		for _, path := range files {
 			file, err := os.Open(path)

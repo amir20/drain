@@ -78,7 +78,7 @@ func (p *ParquetWriter) Start() chan internal.Event {
 			}
 
 			if i > 0 {
-				p.logger.Infof("writing %d rows", i)
+				p.logger.Infow("writing file", "rows", i)
 				writer.Close()
 				file.Close()
 				os.Rename(file.Name(), fmt.Sprintf("data/data-%s.parquet", time.Now().Format(time.RFC3339)))
