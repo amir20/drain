@@ -1,0 +1,37 @@
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg14
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - POSTGRES_DB=${POSTGRES_DB:-drain}
+      - TIMESCALEDB_TELEMETRY=off
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+  beacon:
+    image: amir20/drain:latest
+    deploy:
+      labels:
+        traefik.enable: "true"
+        traefik.http.routers.beacon.rule: Host(`b.dozzle.dev`)
+        traefik.http.services.beacon.loadbalancer.server.port: 4000
+        traefik.http.routers.beacon.entrypoints: websecure
+        traefik.http.routers.beacon.tls.certresolver: myresolver
+    networks:
+      - web
+    volumes:
+      - /data/beacon:/data
+networks:
+  web:
+    external: true
+volumes:
+  postgres_data:
