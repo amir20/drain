@@ -1,0 +1,6 @@
+dashboard
+.vscode
+node_modules
+.ruff_cache
+.direnv
+notebooks

@@ -61,7 +61,10 @@ func main() {
 		}
 	}()
 
-	writer := writer.NewParquetWriter(sugar)
+	writer, err := writer.NewPostgresWriter(sugar, "postgres", "password")
+	if err != nil {
+		sugar.Fatalf("failed to create writer: %w", err)
+	}
 	channel := writer.Start()
 
 	events := sendToAllChannels(channel)
