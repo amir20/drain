@@ -2,9 +2,6 @@ services:
   timescaledb:
     ports:
       - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./init:/docker-entrypoint-initdb.d
   beacon:
     build:
       context: .
@@ -13,5 +10,3 @@ services:
       - "4000:4000"
     volumes:
       - .:/build
-volumes:
-  postgres_data:

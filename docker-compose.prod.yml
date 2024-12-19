@@ -1,8 +1,4 @@
 services:
-  timescaledb:
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./init:/docker-entrypoint-initdb.d
   beacon:
     deploy:
       labels:
@@ -18,5 +14,3 @@ services:
 networks:
   web:
     external: true
-volumes:
-  postgres_data:
