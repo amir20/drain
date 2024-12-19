@@ -1,6 +1,11 @@
 services:
   timescaledb:
     image: timescale/timescaledb:latest-pg17
+    configs:
+      - source: postgresql_conf
+        target: /docker-entrypoint-initdb.d/01_init.sql
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
@@ -22,10 +27,13 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=your_password
   beacon:
-    build: .
+    image: amir20/drain
     depends_on:
-      timescaledb:
-        condition: service_healthy
+      - timescaledb
 volumes:
   postgres_data:
   grafana-storage:
+
+configs:
+  postgresql_conf:
+    file: ./init/01_init.sql
