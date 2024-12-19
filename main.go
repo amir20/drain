@@ -61,13 +61,14 @@ func main() {
 		}
 	}()
 
-	writer, err := writer.NewPostgresWriter(sugar, "postgres", "password")
+	pgWriter, err := writer.NewPostgresWriter(sugar, "postgres", "password")
 	if err != nil {
 		sugar.Fatalf("failed to create writer: %w", err)
 	}
-	channel := writer.Start()
 
-	events := sendToAllChannels(channel)
+	parquetWriter := writer.NewParquetWriter(sugar)
+
+	events := sendToAllChannels(pgWriter.Start(), parquetWriter.Start())
 	srv := web.NewHTTPServer(events, sugar)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -84,7 +85,8 @@ func main() {
 	if err := srv.Shutdown(context.TODO()); err != nil {
 		sugar.Fatalf("server shutdown returned err: %w", err)
 	}
-	writer.Stop()
+	pgWriter.Stop()
+	parquetWriter.Stop()
 }
 
 func sendToAllChannels(channels ...chan internal.Event) chan internal.Event {
