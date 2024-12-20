@@ -12,6 +12,17 @@ services:
       - default
     volumes:
       - /data/beacon:/data
+  grafana:
+    deploy:
+      labels:
+        traefik.enable: "true"
+        traefik.http.routers.beacon.rule: Host(`dashboard.dozzle.dev`)
+        traefik.http.services.beacon.loadbalancer.server.port: 3000
+        traefik.http.routers.beacon.entrypoints: websecure
+        traefik.http.routers.beacon.tls.certresolver: myresolver
+    networks:
+      - web
+      - default
 networks:
   web:
     external: true

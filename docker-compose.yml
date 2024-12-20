@@ -19,8 +19,6 @@ services:
       start_period: 10s
   grafana:
     image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
     volumes:
       - grafana-storage:/var/lib/grafana
     environment:
