@@ -9,6 +9,7 @@ services:
         traefik.http.routers.beacon.tls.certresolver: myresolver
     networks:
       - web
+      - default
     volumes:
       - /data/beacon:/data
 networks:
