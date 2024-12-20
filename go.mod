@@ -3,13 +3,9 @@ module github.com/amir20/drain
 go 1.23.4
 
 require (
-<<<<<<< HEAD
-	github.com/parquet-go/parquet-go v0.24.0
-=======
 	github.com/amir20/dozzle v1.29.1-0.20241215170033-7e896914b18e
 	github.com/lib/pq v1.10.9
-	github.com/parquet-go/parquet-go v0.23.0
->>>>>>> 536f49a (adds pg and grafana)
+	github.com/parquet-go/parquet-go v0.24.0
 	go.uber.org/zap v1.27.0
 )
 
@@ -21,7 +17,6 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/segmentio/encoding v0.4.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
 )
