@@ -1,0 +1,15 @@
+services:
+  timescaledb:
+    ports:
+      - "5432:5432"
+  beacon:
+    build:
+      context: .
+      target: dev
+    ports:
+      - "4000:4000"
+    volumes:
+      - .:/build
+  grafana:
+    ports:
+      - "3000:3000"

@@ -1,0 +1,37 @@
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg17
+    configs:
+      - source: postgresql_conf
+        target: /docker-entrypoint-initdb.d/01_init.sql
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - POSTGRES_DB=${POSTGRES_DB:-drain}
+      - TIMESCALEDB_TELEMETRY=off
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+  grafana:
+    image: grafana/grafana:latest
+    volumes:
+      - grafana-storage:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=your_password
+  beacon:
+    image: amir20/drain
+    depends_on:
+      - timescaledb
+volumes:
+  postgres_data:
+  grafana-storage:
+
+configs:
+  postgresql_conf:
+    file: ./init/01_init.sql
