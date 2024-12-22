@@ -18,6 +18,8 @@ SELECT
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_beacon_client_time ON beacon (client_id, time DESC);
 
+CREATE INDEX idx_name_client_time ON beacon (name, client_id, time);
+
 CREATE INDEX idx_metadata ON beacon USING GIN (metadata);
 
 -- Setup compression
