@@ -31,10 +31,11 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
   view-refresh:
     image: postgres:15-alpine
-    command: psql "postgresql://postgres:password@timescaledb/drain" -c 'REFRESH MATERIALIZED VIEW mv_client_activations'
+    command: tail -f /dev/null
     labels:
       ofelia.enabled: "true"
       ofelia.job-exec.refresh.schedule: "@every 1h"
+      ofelia.job-exec.refresh.command: psql "postgresql://postgres:password@timescaledb/drain" -c 'REFRESH MATERIALIZED VIEW mv_client_activations'
     depends_on:
       - timescaledb
   beacon:
