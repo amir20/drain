@@ -33,3 +33,18 @@ SET
 -- Add compression policy
 SELECT
     add_compression_policy ('beacon', INTERVAL '7 days');
+
+-- Materialized views
+CREATE MATERIALIZED VIEW mv_client_activations AS
+SELECT
+    client_id,
+    MIN(time) as activation_date
+FROM
+    beacon
+WHERE
+    client_id IS NOT NULL
+    AND name = 'start'
+GROUP BY
+    1
+ORDER BY
+    2;
