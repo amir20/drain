@@ -1,0 +1,50 @@
+FROM timescale/timescaledb:latest-pg17 AS base
+
+FROM base AS builder
+
+RUN apk add --no-cache \
+    postgresql17-dev \
+    llvm \
+    llvm-dev \
+    clang \
+    build-base \
+    readline-dev \
+    zlib-dev \
+    flex \
+    bison \
+    libxml2-dev \
+    libxslt-dev \
+    openssl-dev \
+    libxml2-utils \
+    pkgconf \
+    libc++-dev \
+    glib-dev \
+    ncurses-dev \
+    cmake \
+    libstdc++ \
+    lz4-dev \
+    ccache \
+    samurai \
+    git
+
+ENV PATH=/usr/lib/ccache:$PATH
+ENV CCACHE_DIR=/ccache
+
+RUN mkdir /out
+
+RUN mkdir /build
+WORKDIR /build
+RUN git clone https://github.com/duckdb/pg_duckdb.git .
+
+RUN make clean-all
+
+RUN --mount=type=cache,target=/ccache/,uid=999,gid=999 echo "Available CPUs=$(nproc)" && make -j$(nproc) || [ $? -eq 2 ]
+
+RUN make install
+RUN DESTDIR=/out make install
+
+FROM base
+
+COPY --from=builder /out /
+
+RUN sed -r -i "s/[#]*\s*(shared_preload_libraries)\s*=\s*'(.*)'/\1 = 'pg_duckdb,\2'/;s/,'/'/" /usr/local/share/postgresql/postgresql.conf.sample

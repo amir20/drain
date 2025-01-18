@@ -3,6 +3,8 @@ CREATE EXTENSION IF NOT EXISTS timescaledb;
 
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 
+CREATE EXTENSION IF NOT EXISTS pg_duckdb;
+
 -- Create basic schema
 CREATE TABLE IF NOT EXISTS beacon (
     time TIMESTAMPTZ NOT NULL,

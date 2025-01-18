@@ -1,6 +1,9 @@
 services:
   timescaledb:
-    image: timescale/timescaledb:latest-pg17
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+    image: amir20/timescaledb-with-duckdb
     configs:
       - source: postgresql_conf
         target: /docker-entrypoint-initdb.d/01_init.sql
@@ -39,6 +42,8 @@ services:
     depends_on:
       - timescaledb
   beacon:
+    build:
+      context: .
     image: amir20/drain
     depends_on:
       - timescaledb
