@@ -1,6 +1,0 @@
-compiler: rillv1
-
-title: "Dozzle Dashboard"
-sources:
-  refresh:
-    every: 1h

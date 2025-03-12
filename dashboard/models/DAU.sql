@@ -1,1 +1,0 @@
-SELECT DISTINCT on (CASE WHEN ServerID != '' THEN ServerID ELSE RemoteIP END,  date_trunc('day', CreatedAt)) date_trunc('day', CreatedAt) as CreatedAt, AuthProvider, "Version", Clients, HasCustomAddress, HasCustomBase, RunningContainers, IsSwarmMode, HasActions, ServerVersion from beacon where name = 'events' ORDER by RemoteIP, CreatedAt desc

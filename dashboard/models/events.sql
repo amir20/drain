@@ -1,1 +1,0 @@
-select * from beacon where Name = 'events'

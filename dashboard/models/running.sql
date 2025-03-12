@@ -1,1 +1,0 @@
-SELECT DISTINCT on (CASE WHEN ServerID != '' THEN ServerID ELSE RemoteIP END,  date_trunc('day', CreatedAt)) date_trunc('day', CreatedAt) as CreatedAt, AuthProvider, "Version",  HasCustomAddress, HasCustomBase, IsSwarmMode, HasActions, ServerVersion, RemoteAgents, "RemoteClients", Mode, SubCommand from start ORDER by RemoteIP, CreatedAt desc
