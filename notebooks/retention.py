@@ -3,7 +3,6 @@ import streamlit as st
 import glob
 from datetime import datetime, timedelta, timezone
 import plotly.express as px
-import pandas as pd
 
 st.set_page_config(layout="wide")
 
@@ -12,7 +11,6 @@ df = pl.concat([pl.read_parquet(file) for file in parquet_files], how="diagonal"
 st.title("Retention Analysis Dozzle")
 
 # Only look for event types
-
 df = df.filter(df["Name"] == "events")
 
 # Generate hash from ServerID
@@ -65,8 +63,6 @@ df = df.with_columns(
 # Count unique values in 'current_week' column
 value_counts = df.group_by("cohort_index").agg(pl.len().alias("count"))
 value_counts = value_counts.sort("count", descending=True)
-st.write("### Frequency of Values in 'current_week'")
-st.bar_chart(value_counts.to_pandas().set_index("cohort_index"))
 
 # Group by and count unique users
 cohort_counts = df.group_by(["activated_week", "cohort_index"]).agg(
