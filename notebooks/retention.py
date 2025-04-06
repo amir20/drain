@@ -3,6 +3,7 @@ import streamlit as st
 import glob
 from datetime import datetime, timedelta, timezone
 import plotly.express as px
+import plotly.graph_objects as go
 
 st.set_page_config(layout="wide")
 
@@ -69,6 +70,7 @@ cohort_counts = df.group_by(["activated_week", "cohort_index"]).agg(
     pl.col("UserID").n_unique().alias("users")
 )
 
+
 # Sort by activated_week
 cohort_counts = cohort_counts.sort("activated_week")
 
@@ -124,8 +126,13 @@ def display_retention_heatmap(retention):
         text_auto=".0%",  # Format as percentage
     )
 
+    fig_go = go.Figure(fig)
+    # Add gaps between cells
+    fig_go.data[0].xgap = 2
+    fig_go.data[0].ygap = 2
+
     # Customize layout
-    fig.update_layout(
+    fig_go.update_layout(
         title="Cohort Retention Analysis",
         xaxis_title="Week Number",
         yaxis_title="Cohort Start Date",
@@ -135,7 +142,7 @@ def display_retention_heatmap(retention):
     )
 
     # Display in Streamlit
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig_go, use_container_width=True)
 
 
 # In your Streamlit app
