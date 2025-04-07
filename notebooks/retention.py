@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 
 st.set_page_config(layout="wide")
 
+# rsync -avz -e "ssh -o RemoteCommand=none" "b.dozzle.dev:/data/beacon/day*.parquet" ./data/
 parquet_files = glob.glob("./data/day-*.parquet")
 df = pl.concat([pl.read_parquet(file) for file in parquet_files], how="diagonal")
 st.title("Retention Analysis Dozzle")
