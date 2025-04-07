@@ -12,32 +12,30 @@ st.set_page_config(page_title="Dozzle Retention Analysis", layout="wide")
 parquet_files = glob.glob("./data/day-*.parquet")
 df = pl.concat([pl.read_parquet(file) for file in parquet_files], how="diagonal")
 
-# Only look for event types
-df = df.filter(df["Name"] == "events")
-
-# Generate hash from ServerID
-df = df.with_columns(
-    pl.when(pl.col("ServerID").is_null() | (pl.col("ServerID") == ""))
-    .then(pl.col("RemoteIP").hash())
-    .otherwise(pl.col("ServerID").hash())
-    .alias("UserID")
-)
-
-df = df.drop(
-    [
-        "RemoteIP",
-        "HasHostname",
-        "FilterLength",
-        "Clients",
-        "HasActions",
-        "Browser",
-        "ServerID",
-        "HasCustomAddress",
-        "HasCustomBase",
-        "IsSwarmMode",
-        "RemoteClients",
-        "RemoteAgents",
-    ]
+df = (
+    df.filter(df["Name"] == "events")
+    .with_columns(
+        pl.when(pl.col("ServerID").is_null() | (pl.col("ServerID") == ""))
+        .then(pl.col("RemoteIP").hash())
+        .otherwise(pl.col("ServerID").hash())
+        .alias("UserID")
+    )
+    .drop(
+        [
+            "RemoteIP",
+            "HasHostname",
+            "FilterLength",
+            "Clients",
+            "HasActions",
+            "Browser",
+            "ServerID",
+            "HasCustomAddress",
+            "HasCustomBase",
+            "IsSwarmMode",
+            "RemoteClients",
+            "RemoteAgents",
+        ]
+    )
 )
 
 # Compute cohort
