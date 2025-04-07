@@ -5,12 +5,15 @@ from datetime import datetime, timedelta, timezone
 import plotly.express as px
 import plotly.graph_objects as go
 
-st.set_page_config(layout="wide")
+
+
+st.set_page_config(
+    page_title="Dozzle Retention Analysis", layout="wide"
+)
 
 # rsync -avz -e "ssh -o RemoteCommand=none" "b.dozzle.dev:/data/beacon/day*.parquet" ./data/
 parquet_files = glob.glob("./data/day-*.parquet")
 df = pl.concat([pl.read_parquet(file) for file in parquet_files], how="diagonal")
-st.title("Retention Analysis Dozzle")
 
 # Only look for event types
 df = df.filter(df["Name"] == "events")
@@ -88,8 +91,8 @@ cohort_counts = cohort_counts.with_columns(
     ]
 )
 
-
-st.dataframe(cohort_counts.head(50))
+with st.expander('Show top 50 rows'):
+    st.dataframe(cohort_counts.head(50))
 
 retention = (
     cohort_counts.pivot(
@@ -103,7 +106,6 @@ retention = (
     .select(["activated_date", "0", "1", "2", "3", "4", "5", "6", "7"])
 )
 
-st.write("### Retention Rate")
 
 
 def display_retention_heatmap(retention):
