@@ -98,7 +98,7 @@ retention = (
         sort_columns=True,
     )
     .tail(10)
-    .select(["activated_date", "0", "1", "2", "3", "4", "5", "6", "7"])
+    .select(["activated_date"] + [str(i) for i in range(8)])
 )
 
 
