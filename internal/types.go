@@ -9,13 +9,14 @@ type Event struct {
 	RemoteIP          string    `json:"remoteIP"`
 	Version           string    `json:"version"`
 	Clients           int       `json:"clients"`
+	Browser           string    `json:"browser"`
 	FilterLength      int       `json:"filterLength"`
 	HasCustomAddress  bool      `json:"hasCustomAddress"`
 	HasCustomBase     bool      `json:"hasCustomBase"`
 	HasHostname       bool      `json:"hasHostname"`
-	RunningContainers int       `json:"runningContainers"`
-	Browser           string    `json:"browser"`
 	HasActions        bool      `json:"hasActions"`
+	HasShell          bool      `json:"hasShell"`
+	RunningContainers int       `json:"runningContainers"`
 	IsSwarmMode       bool      `json:"isSwarmMode"`
 	ServerVersion     string    `json:"serverVersion"`
 	ServerID          string    `json:"serverID"`
