@@ -3,11 +3,11 @@ name = "drain"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13.3"
+requires-python = ">=3.13.4"
 dependencies = [
     "plotly>=6.1.2",
     "polars>=1.30.0",
-    "ruff>=0.11.12",
+    "ruff>=0.11.13",
     "streamlit>=1.45.1",
     "watchdog>=6.0.0",
 ]
