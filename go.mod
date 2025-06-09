@@ -1,11 +1,11 @@
 module github.com/amir20/drain
 
-go 1.24.3
+go 1.24.4
 
 require (
 	github.com/amir20/dozzle v1.29.1-0.20250515152153-66b0dfe2808f
 	github.com/lib/pq v1.10.9
-	github.com/parquet-go/parquet-go v0.25.0
+	github.com/parquet-go/parquet-go v0.25.1
 	go.uber.org/zap v1.27.0
 )
 
