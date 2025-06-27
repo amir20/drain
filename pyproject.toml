@@ -5,9 +5,9 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13.5"
 dependencies = [
-    "plotly>=6.1.2",
+    "plotly>=6.2.0",
     "polars>=1.31.0",
-    "ruff>=0.12.0",
-    "streamlit>=1.46.0",
+    "ruff>=0.12.1",
+    "streamlit>=1.46.1",
     "watchdog>=6.0.0",
 ]
