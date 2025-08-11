@@ -1,6 +1,6 @@
 module github.com/amir20/drain
 
-go 1.24.5
+go 1.24.6
 
 require (
 	github.com/amir20/dozzle v1.29.1-0.20250515152153-66b0dfe2808f
