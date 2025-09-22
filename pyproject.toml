@@ -7,7 +7,7 @@ requires-python = ">=3.13.7"
 dependencies = [
     "plotly>=6.3.0",
     "polars>=1.33.1",
-    "ruff>=0.13.0",
+    "ruff>=0.13.1",
     "streamlit>=1.49.1",
     "watchdog>=6.0.0",
 ]
