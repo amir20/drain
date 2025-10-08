@@ -30,7 +30,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
   view-refresh:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     command: tail -f /dev/null
     labels:
       ofelia.enabled: "true"
