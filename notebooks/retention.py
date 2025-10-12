@@ -145,3 +145,66 @@ def display_retention_heatmap(retention):
 # In your Streamlit app
 st.title("Cohort Retention Analysis")
 display_retention_heatmap(retention)
+
+
+# Add this after your cohort_counts calculation and before the expander
+
+# Calculate average usage frequency per week
+usage_frequency = (
+    df.group_by(["UserID", "current_week"])
+    .agg(pl.len().alias("events_count"))
+    .group_by("current_week")
+    .agg(
+        pl.col("events_count").mean().alias("avg_events_per_user_per_week"),
+        pl.col("UserID").n_unique().alias("active_users"),
+    )
+)
+
+# Add the date for better readability
+usage_frequency = usage_frequency.with_columns(
+    (
+        pl.lit(baseline) + pl.col("current_week").cast(pl.Int64) * pl.duration(weeks=1)
+    ).alias("week_date")
+).sort("current_week")
+
+# Overall average (across all time)
+overall_avg = (
+    df.group_by(["UserID", "current_week"])
+    .agg(pl.len().alias("events_count"))
+    .select(pl.col("events_count").mean().alias("overall_avg_events_per_user_per_week"))
+)
+
+st.header("Usage Frequency Analysis")
+col1, col2 = st.columns(2)
+
+with col1:
+    st.metric(
+        "Overall Average Events per User per Week",
+        f"{overall_avg['overall_avg_events_per_user_per_week'][0]:.2f}",
+    )
+
+with col2:
+    # Recent average (last 4 weeks)
+    recent_avg = usage_frequency.tail(4).select(
+        pl.col("avg_events_per_user_per_week").mean()
+    )[0, 0]
+    st.metric("Recent Average (Last 4 Weeks)", f"{recent_avg:.2f}")
+
+# Display usage frequency over time
+fig_usage = px.line(
+    usage_frequency.to_pandas(),
+    x="week_date",
+    y="avg_events_per_user_per_week",
+    title="Average Events per User per Week Over Time",
+    labels={"week_date": "Week", "avg_events_per_user_per_week": "Avg Events per User"},
+)
+fig_usage.update_traces(mode="lines+markers")
+st.plotly_chart(fig_usage, use_container_width=True)
+
+# Show detailed table
+with st.expander("Show Usage Frequency Details"):
+    st.dataframe(
+        usage_frequency.select(
+            ["week_date", "avg_events_per_user_per_week", "active_users"]
+        ).tail(20)
+    )
