@@ -4,6 +4,7 @@ import glob
 from datetime import datetime, timedelta, timezone
 import plotly.express as px
 import plotly.graph_objects as go
+from typing import Tuple
 
 
 # Configuration
@@ -14,7 +15,7 @@ BASELINE = datetime(year=2020, month=1, day=1).replace(tzinfo=timezone.utc)
 DATA_PATH = "./data/day-*.parquet"
 
 
-def load_and_process_data():
+def load_and_process_data() -> pl.DataFrame:
     """Load parquet files and perform initial data processing."""
     parquet_files = glob.glob(DATA_PATH)
     df = pl.concat([pl.read_parquet(file) for file in parquet_files], how="diagonal")
@@ -49,7 +50,7 @@ def load_and_process_data():
     return df
 
 
-def compute_cohort_data(df):
+def compute_cohort_data(df: pl.DataFrame) -> pl.DataFrame:
     """Compute cohort analysis data."""
     # Add activation date for each user
     df = df.with_columns(pl.col("CreatedAt").min().over("UserID").alias("activated"))
@@ -74,7 +75,7 @@ def compute_cohort_data(df):
     return df
 
 
-def calculate_cohort_retention(df):
+def calculate_cohort_retention(df: pl.DataFrame) -> pl.DataFrame:
     """Calculate cohort retention rates."""
     cohort_counts = (
         df.group_by(["activated_week", "cohort_index"])
@@ -98,7 +99,7 @@ def calculate_cohort_retention(df):
     return cohort_counts
 
 
-def prepare_retention_matrix(cohort_counts):
+def prepare_retention_matrix(cohort_counts: pl.DataFrame) -> pl.DataFrame:
     """Prepare retention data for heatmap visualization."""
     retention = (
         cohort_counts.pivot(
@@ -115,7 +116,7 @@ def prepare_retention_matrix(cohort_counts):
     return retention
 
 
-def display_retention_heatmap(retention):
+def display_retention_heatmap(retention: pl.DataFrame) -> None:
     """Display cohort retention heatmap."""
     retention_pd = retention.to_pandas()
 
@@ -150,7 +151,7 @@ def display_retention_heatmap(retention):
     st.plotly_chart(fig_go, use_container_width=True)
 
 
-def calculate_usage_frequency(df):
+def calculate_usage_frequency(df: pl.DataFrame) -> Tuple[pl.DataFrame, pl.DataFrame]:
     """Calculate usage frequency metrics."""
     usage_frequency = (
         df.group_by(["UserID", "current_week"])
@@ -180,7 +181,9 @@ def calculate_usage_frequency(df):
     return usage_frequency, overall_avg
 
 
-def display_usage_frequency_analysis(usage_frequency, overall_avg):
+def display_usage_frequency_analysis(
+    usage_frequency: pl.DataFrame, overall_avg: pl.DataFrame
+) -> None:
     """Display usage frequency analysis section."""
     st.header("Usage Frequency Analysis")
 
@@ -223,7 +226,7 @@ def display_usage_frequency_analysis(usage_frequency, overall_avg):
         )
 
 
-def main():
+def main() -> None:
     """Main dashboard function."""
     st.title("Cohort Retention Analysis")
 

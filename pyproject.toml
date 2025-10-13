@@ -1,7 +1,7 @@
 [project]
 name = "drain"
 version = "0.1.0"
-description = "Add your description here"
+description = "Dashboard for Dozzle"
 readme = "README.md"
 requires-python = ">=3.14.0"
 dependencies = [
@@ -11,3 +11,7 @@ dependencies = [
     "streamlit>=1.50.0",
     "watchdog>=6.0.0",
 ]
+
+
+[tool.basedpyright]
+reportUnusedCallResult = "none"
