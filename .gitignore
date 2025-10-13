@@ -2,3 +2,4 @@ data
 drain
 !dashboard/data
 tmp
+__pycache__
