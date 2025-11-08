@@ -1,19 +1,18 @@
 """Visualization components for the retention analysis dashboard."""
 
-import polars as pl
-import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
-
+import polars as pl
+import streamlit as st
 from config import (
-    HEATMAP_HEIGHT,
-    HEATMAP_WIDTH,
+    ENGAGEMENT_DETAILS_TAIL,
     HEATMAP_COLOR_SCALE,
     HEATMAP_GAP,
+    HEATMAP_HEIGHT,
+    HEATMAP_WIDTH,
+    LIFECYCLE_DETAILS_TAIL,
     RECENT_WEEKS_COUNT,
     USAGE_DETAILS_TAIL,
-    LIFECYCLE_DETAILS_TAIL,
-    ENGAGEMENT_DETAILS_TAIL,
 )
 
 
@@ -53,7 +52,7 @@ def display_retention_heatmap(retention: pl.DataFrame) -> None:
         width=HEATMAP_WIDTH,
     )
 
-    st.plotly_chart(fig_go, use_container_width=True)
+    st.plotly_chart(fig_go, width="stretch")
 
 
 def display_usage_frequency_analysis(
@@ -97,7 +96,7 @@ def display_usage_frequency_analysis(
             },
         )
         fig_usage.update_traces(mode="lines+markers")
-        st.plotly_chart(fig_usage, use_container_width=True)
+        st.plotly_chart(fig_usage, width="stretch")
 
     # Detailed table
     with st.expander("Show Usage Frequency Details"):
@@ -180,7 +179,7 @@ def display_user_lifecycle_analysis(lifecycle_df: pl.DataFrame) -> None:
             hovermode="x unified",
         )
 
-        st.plotly_chart(fig_lifecycle, use_container_width=True)
+        st.plotly_chart(fig_lifecycle, width="stretch")
 
     # Churned users chart
     with st.spinner("Generating churn chart..."):
@@ -192,7 +191,7 @@ def display_user_lifecycle_analysis(lifecycle_df: pl.DataFrame) -> None:
             labels={"week_date": "Week", "churned_users": "Churned Users"},
         )
         fig_churn.update_traces(mode="lines+markers", line_color="red")
-        st.plotly_chart(fig_churn, use_container_width=True)
+        st.plotly_chart(fig_churn, width="stretch")
 
     # Detailed table
     with st.expander("Show Lifecycle Details"):
@@ -247,7 +246,7 @@ def display_stickiness_analysis(
         )
         fig_stickiness.update_traces(mode="lines+markers")
         fig_stickiness.update_yaxes(tickformat=".0%")
-        st.plotly_chart(fig_stickiness, use_container_width=True)
+        st.plotly_chart(fig_stickiness, width="stretch")
 
     # WAU vs MAU chart
     with st.spinner("Generating WAU/MAU chart..."):
@@ -280,7 +279,7 @@ def display_stickiness_analysis(
             hovermode="x unified",
         )
 
-        st.plotly_chart(fig_wau_mau, use_container_width=True)
+        st.plotly_chart(fig_wau_mau, width="stretch")
 
 
 def display_engagement_depth_analysis(engagement_df: pl.DataFrame) -> None:
@@ -344,7 +343,7 @@ def display_engagement_depth_analysis(engagement_df: pl.DataFrame) -> None:
             hovermode="x unified",
         )
 
-        st.plotly_chart(fig_engagement, use_container_width=True)
+        st.plotly_chart(fig_engagement, width="stretch")
 
     # Detailed table
     with st.expander("Show Engagement Depth Details"):
@@ -380,7 +379,7 @@ def display_cohort_engagement_analysis(cohort_engagement_df: pl.DataFrame) -> No
                 "avg_events_per_user": "Avg Events per User",
             },
         )
-        st.plotly_chart(fig_cohort_engagement, use_container_width=True)
+        st.plotly_chart(fig_cohort_engagement, width="stretch")
 
     # Show summary statistics
     col1, col2 = st.columns(2)
