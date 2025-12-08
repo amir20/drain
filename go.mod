@@ -5,7 +5,7 @@ go 1.25.5
 require (
 	github.com/amir20/dozzle v1.29.1-0.20250515152153-66b0dfe2808f
 	github.com/lib/pq v1.10.9
-	github.com/parquet-go/parquet-go v0.25.1
+	github.com/parquet-go/parquet-go v0.26.0
 	go.uber.org/zap v1.27.1
 )
 
@@ -15,8 +15,11 @@ require (
 	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
+	github.com/parquet-go/bitpack v0.2.0 // indirect
+	github.com/parquet-go/jsonlite v0.8.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
+	google.golang.org/protobuf v1.36.6 // indirect
 )
