@@ -33,6 +33,8 @@ github.com/parquet-go/parquet-go v0.26.0 h1:5rWuYYCKouRlo1kLihNAcw2+mb/OLJhIZjjp
 github.com/parquet-go/parquet-go v0.26.0/go.mod h1:7K8PVhWjeOLCtcV0cT3DFMfegbcM9uwvVNc2F+Cmsw4=
 github.com/parquet-go/parquet-go v0.26.3 h1:kJY+xmjcR7BH77tyHqasJpIl3kch/6EIO3TW4tFj69M=
 github.com/parquet-go/parquet-go v0.26.3/go.mod h1:h9GcSt41Knf5qXI1tp1TfR8bDBUtvdUMzSKe26aZcHk=
+github.com/parquet-go/parquet-go v0.26.4 h1:zJ3l8ef5WJZE2m63pKwyEJ2BhyDlgS0PfOEhuCQQU2A=
+github.com/parquet-go/parquet-go v0.26.4/go.mod h1:h9GcSt41Knf5qXI1tp1TfR8bDBUtvdUMzSKe26aZcHk=
 github.com/pierrec/lz4/v4 v4.1.21 h1:yOVMLb6qSIDP67pl/5F7RepeKYu/VmTyEXvuMI5d9mQ=
 github.com/pierrec/lz4/v4 v4.1.21/go.mod h1:gZWDp/Ze/IJXGXf23ltt2EXimqmTUXEy0GFuRQyBid4=
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 h1:Jamvg5psRIccs7FGNTlIRMkT8wgtp5eCXdBlqhYGL6U=
