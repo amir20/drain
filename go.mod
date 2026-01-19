@@ -1,11 +1,11 @@
 module github.com/amir20/drain
 
-go 1.25.5
+go 1.25.6
 
 require (
 	github.com/amir20/dozzle v1.29.1-0.20250515152153-66b0dfe2808f
 	github.com/lib/pq v1.10.9
-	github.com/parquet-go/parquet-go v0.26.4
+	github.com/parquet-go/parquet-go v0.27.0
 	go.uber.org/zap v1.27.1
 )
 
@@ -19,6 +19,7 @@ require (
 	github.com/parquet-go/jsonlite v1.0.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/twpayne/go-geom v1.6.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
