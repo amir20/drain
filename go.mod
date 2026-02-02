@@ -4,7 +4,7 @@ go 1.25.6
 
 require (
 	github.com/amir20/dozzle v1.29.1-0.20250515152153-66b0dfe2808f
-	github.com/lib/pq v1.10.9
+	github.com/lib/pq v1.11.1
 	github.com/parquet-go/parquet-go v0.27.0
 	go.uber.org/zap v1.27.1
 )
