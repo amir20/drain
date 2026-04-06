@@ -8,8 +8,8 @@ dependencies = [
     "plotly>=6.6.0",
     "polars>=1.39.3",
     "pyarrow>=23.0.1",  # Override streamlit's constraint
-    "ruff>=0.15.8",
-    "streamlit>=1.55.0",
+    "ruff>=0.15.9",
+    "streamlit>=1.56.0",
     "watchdog>=6.0.0",
 ]
 
