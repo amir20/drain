@@ -3,12 +3,12 @@ name = "drain"
 version = "0.1.0"
 description = "Dashboard for Dozzle"
 readme = "README.md"
-requires-python = ">=3.14.3"
+requires-python = ">=3.14.4"
 dependencies = [
-    "plotly>=6.6.0",
+    "plotly>=6.7.0",
     "polars>=1.39.3",
     "pyarrow>=23.0.1",  # Override streamlit's constraint
-    "ruff>=0.15.9",
+    "ruff>=0.15.10",
     "streamlit>=1.56.0",
     "watchdog>=6.0.0",
 ]
