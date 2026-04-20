@@ -22,6 +22,8 @@ def calculate_user_lifecycle_metrics(df: pl.DataFrame) -> pl.DataFrame:
 
     # Calculate lifecycle metrics
     lifecycle_metrics = []
+    prev_users: set = set()
+    all_previous_users: set = set()
     for i, row in enumerate(weekly_users.iter_rows(named=True)):
         week = row["current_week"]
         current_users = set(row["users"])
@@ -32,7 +34,6 @@ def calculate_user_lifecycle_metrics(df: pl.DataFrame) -> pl.DataFrame:
             retained_users = 0
             churned_users = 0
             resurrected_users = 0
-            prev_users = current_users
         else:
             # Users from previous week
             retained_users = len(current_users & prev_users)
@@ -41,11 +42,8 @@ def calculate_user_lifecycle_metrics(df: pl.DataFrame) -> pl.DataFrame:
             churned_users = len(prev_users - current_users)
 
             all_previous_users = all_previous_users | prev_users
-            prev_users = current_users
 
-        if i == 0:
-            all_previous_users = current_users
-            prev_users = current_users
+        prev_users = current_users
 
         lifecycle_metrics.append(
             {

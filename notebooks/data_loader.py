@@ -1,6 +1,6 @@
 """Data loading and processing utilities for retention analysis."""
 
-import glob
+from pathlib import Path
 
 import polars as pl
 from config import DATA_PATH
@@ -12,7 +12,8 @@ def load_and_process_data() -> pl.DataFrame:
     Returns:
         pl.DataFrame: Processed dataframe with UserID and cleaned columns.
     """
-    parquet_files = glob.glob(DATA_PATH)
+    data_path = Path(DATA_PATH)
+    parquet_files = sorted(data_path.parent.glob(data_path.name))
     df = pl.concat([pl.read_parquet(file) for file in parquet_files], how="diagonal")
 
     # Filter and clean data
