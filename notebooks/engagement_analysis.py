@@ -1,9 +1,6 @@
 """Engagement analysis calculations for user behavior metrics."""
 
-from datetime import timedelta
-from typing import Tuple
 import polars as pl
-
 from config import BASELINE
 
 
@@ -62,16 +59,15 @@ def calculate_user_lifecycle_metrics(df: pl.DataFrame) -> pl.DataFrame:
         )
 
     lifecycle_df = pl.DataFrame(lifecycle_metrics).with_columns(
-        (
-            pl.lit(BASELINE)
-            + pl.col("current_week").cast(pl.Int64) * pl.duration(weeks=1)
-        ).alias("week_date")
+        (pl.lit(BASELINE) + pl.col("current_week").cast(pl.Int64) * pl.duration(weeks=1)).alias(
+            "week_date"
+        )
     )
 
     return lifecycle_df
 
 
-def calculate_stickiness_metrics(df: pl.DataFrame) -> Tuple[pl.DataFrame, dict]:
+def calculate_stickiness_metrics(df: pl.DataFrame) -> tuple[pl.DataFrame, dict]:
     """Calculate stickiness metrics including DAU/MAU ratio equivalent (WAU/MAU).
 
     Args:
@@ -91,20 +87,17 @@ def calculate_stickiness_metrics(df: pl.DataFrame) -> Tuple[pl.DataFrame, dict]:
 
     # Calculate 4-week rolling active users (approximation of MAU)
     wau = wau.with_columns(
-        pl.col("wau").rolling_max(window_size=4, min_periods=1).alias("mau_rolling_max")
+        pl.col("wau").rolling_max(window_size=4, min_samples=1).alias("mau_rolling_max")
     )
 
     # Calculate stickiness ratio (WAU / MAU)
-    wau = wau.with_columns(
-        (pl.col("wau") / pl.col("mau_rolling_max")).alias("stickiness_ratio")
-    )
+    wau = wau.with_columns((pl.col("wau") / pl.col("mau_rolling_max")).alias("stickiness_ratio"))
 
     # Add week date
     wau = wau.with_columns(
-        (
-            pl.lit(BASELINE)
-            + pl.col("current_week").cast(pl.Int64) * pl.duration(weeks=1)
-        ).alias("week_date")
+        (pl.lit(BASELINE) + pl.col("current_week").cast(pl.Int64) * pl.duration(weeks=1)).alias(
+            "week_date"
+        )
     )
 
     # Calculate summary statistics
@@ -153,10 +146,9 @@ def calculate_engagement_depth(df: pl.DataFrame) -> pl.DataFrame:
 
     # Add week date
     engagement_distribution = engagement_distribution.with_columns(
-        (
-            pl.lit(BASELINE)
-            + pl.col("current_week").cast(pl.Int64) * pl.duration(weeks=1)
-        ).alias("week_date")
+        (pl.lit(BASELINE) + pl.col("current_week").cast(pl.Int64) * pl.duration(weeks=1)).alias(
+            "week_date"
+        )
     )
 
     return engagement_distribution
@@ -180,9 +172,7 @@ def calculate_cohort_engagement_metrics(df: pl.DataFrame) -> pl.DataFrame:
             ]
         )
         .with_columns(
-            (pl.col("total_events") / pl.col("active_users")).alias(
-                "avg_events_per_user"
-            )
+            (pl.col("total_events") / pl.col("active_users")).alias("avg_events_per_user")
         )
         .sort("cohort_index")
     )

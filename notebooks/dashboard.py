@@ -1,30 +1,28 @@
 """Streamlit dashboard for Dozzle retention analysis."""
 
 import streamlit as st
-
-from config import PAGE_TITLE, PAGE_LAYOUT, COHORT_DETAILS_HEAD
-from data_loader import load_and_process_data
 from cohort_analysis import (
-    compute_cohort_data,
     calculate_cohort_retention,
+    compute_cohort_data,
     prepare_retention_matrix,
 )
-from usage_analysis import calculate_usage_frequency
+from config import COHORT_DETAILS_HEAD, PAGE_LAYOUT, PAGE_TITLE
+from data_loader import load_and_process_data
 from engagement_analysis import (
-    calculate_user_lifecycle_metrics,
-    calculate_stickiness_metrics,
-    calculate_engagement_depth,
     calculate_cohort_engagement_metrics,
+    calculate_engagement_depth,
+    calculate_stickiness_metrics,
+    calculate_user_lifecycle_metrics,
 )
+from usage_analysis import calculate_usage_frequency
 from visualizations import (
+    display_cohort_engagement_analysis,
+    display_engagement_depth_analysis,
     display_retention_heatmap,
+    display_stickiness_analysis,
     display_usage_frequency_analysis,
     display_user_lifecycle_analysis,
-    display_stickiness_analysis,
-    display_engagement_depth_analysis,
-    display_cohort_engagement_analysis,
 )
-
 
 # Configuration
 st.set_page_config(page_title=PAGE_TITLE, layout=PAGE_LAYOUT)

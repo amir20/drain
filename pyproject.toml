@@ -8,11 +8,56 @@ dependencies = [
     "plotly>=6.7.0",
     "polars>=1.40.0",
     "pyarrow>=23.0.1",  # Override streamlit's constraint
-    "ruff>=0.15.11",
     "streamlit>=1.56.0",
     "watchdog>=6.0.0",
 ]
 
+[dependency-groups]
+dev = [
+    "ruff>=0.15.11",
+    "ty>=0.0.1a18",
+]
 
-[tool.basedpyright]
-reportUnusedCallResult = "none"
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+extend-exclude = [".venv", "tmp", "data", "__pycache__"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "C4",   # flake8-comprehensions
+    "PTH",  # flake8-use-pathlib
+    "RUF",  # ruff-specific rules
+    "N",    # pep8-naming
+    "TID",  # flake8-tidy-imports
+]
+ignore = [
+    "E501",  # line length handled by formatter
+]
+
+[tool.ruff.lint.per-file-ignores]
+"notebooks/*.py" = [
+    "N802", "N803", "N806",  # allow naming common in data/notebook code
+    "C408",                  # plotly APIs use dict(...) idiomatically
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["drain"]
+
+[tool.ruff.format]
+docstring-code-format = true
+docstring-code-line-length = 80
+
+[tool.ty.src]
+include = ["drain", "notebooks"]
+exclude = ["**/__pycache__", ".venv", "tmp", "data"]
+
+[tool.ty.environment]
+python-version = "3.14"

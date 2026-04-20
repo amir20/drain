@@ -1,8 +1,8 @@
 """Cohort analysis calculations for retention metrics."""
 
 from datetime import timedelta
-import polars as pl
 
+import polars as pl
 from config import BASELINE, RETENTION_MATRIX_TAIL, RETENTION_MATRIX_WEEKS
 
 
@@ -31,9 +31,7 @@ def compute_cohort_data(df: pl.DataFrame) -> pl.DataFrame:
     )
 
     # Add cohort index
-    df = df.with_columns(
-        (pl.col("current_week") - pl.col("activated_week")).alias("cohort_index")
-    )
+    df = df.with_columns((pl.col("current_week") - pl.col("activated_week")).alias("cohort_index"))
 
     return df
 
@@ -60,8 +58,7 @@ def calculate_cohort_retention(df: pl.DataFrame) -> pl.DataFrame:
                 "retention_rate"
             ),
             (
-                pl.lit(BASELINE)
-                + pl.col("activated_week").cast(pl.Int64) * pl.duration(weeks=1)
+                pl.lit(BASELINE) + pl.col("activated_week").cast(pl.Int64) * pl.duration(weeks=1)
             ).alias("activated_date"),
         ]
     )

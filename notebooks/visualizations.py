@@ -79,9 +79,7 @@ def display_usage_frequency_analysis(
         recent_avg = usage_frequency.tail(RECENT_WEEKS_COUNT).select(
             pl.col("avg_events_per_user_per_week").mean()
         )[0, 0]
-        st.metric(
-            f"Recent Average (Last {RECENT_WEEKS_COUNT} Weeks)", f"{recent_avg:.2f}"
-        )
+        st.metric(f"Recent Average (Last {RECENT_WEEKS_COUNT} Weeks)", f"{recent_avg:.2f}")
 
     # Usage frequency chart
     with st.spinner("Generating usage frequency chart..."):
@@ -129,9 +127,7 @@ def display_user_lifecycle_analysis(lifecycle_df: pl.DataFrame) -> None:
         st.metric("Churned Users (Last Week)", f"{recent_week['churned_users'][0]:,}")
 
     with col4:
-        st.metric(
-            "Resurrected Users (Last Week)", f"{recent_week['resurrected_users'][0]:,}"
-        )
+        st.metric("Resurrected Users (Last Week)", f"{recent_week['resurrected_users'][0]:,}")
 
     # Lifecycle stacked area chart
     with st.spinner("Generating lifecycle chart..."):
@@ -209,9 +205,7 @@ def display_user_lifecycle_analysis(lifecycle_df: pl.DataFrame) -> None:
         )
 
 
-def display_stickiness_analysis(
-    stickiness_df: pl.DataFrame, summary_stats: dict
-) -> None:
+def display_stickiness_analysis(stickiness_df: pl.DataFrame, summary_stats: dict) -> None:
     """Display stickiness analysis section.
 
     Args:
@@ -310,9 +304,7 @@ def display_engagement_depth_analysis(engagement_df: pl.DataFrame) -> None:
             "21-50_events",
             "50+_events",
         ]
-        engagement_pd = engagement_pd[
-            [col for col in level_order if col in engagement_pd.columns]
-        ]
+        engagement_pd = engagement_pd[[col for col in level_order if col in engagement_pd.columns]]
 
         fig_engagement = go.Figure()
 
@@ -365,9 +357,7 @@ def display_cohort_engagement_analysis(cohort_engagement_df: pl.DataFrame) -> No
     # Engagement by cohort age chart
     with st.spinner("Generating cohort engagement chart..."):
         # Limit to first 20 weeks for readability
-        cohort_engagement_limited = cohort_engagement_df.filter(
-            pl.col("cohort_index") <= 20
-        )
+        cohort_engagement_limited = cohort_engagement_df.filter(pl.col("cohort_index") <= 20)
 
         fig_cohort_engagement = px.bar(
             cohort_engagement_limited.to_pandas(),

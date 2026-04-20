@@ -1,8 +1,8 @@
 """Data loading and processing utilities for retention analysis."""
 
 import glob
-import polars as pl
 
+import polars as pl
 from config import DATA_PATH
 
 

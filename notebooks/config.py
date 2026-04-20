@@ -1,9 +1,9 @@
 """Configuration constants for the Dozzle Retention Analysis dashboard."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 # Baseline date for cohort analysis
-BASELINE = datetime(year=2020, month=1, day=1).replace(tzinfo=timezone.utc)
+BASELINE = datetime(year=2020, month=1, day=1).replace(tzinfo=UTC)
 
 # Data file path pattern
 DATA_PATH = "./data/day-*.parquet"
