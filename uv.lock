@@ -124,7 +124,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "ruff", specifier = ">=0.15.11" },
-    { name = "ty", specifier = ">=0.0.1a18" },
+    { name = "ty", specifier = ">=0.0.31" },
 ]
 
 [[package]]
