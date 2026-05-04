@@ -6,7 +6,7 @@ require (
 	github.com/amir20/dozzle v1.29.1-0.20250515152153-66b0dfe2808f
 	github.com/lib/pq v1.12.3
 	github.com/parquet-go/parquet-go v0.29.0
-	go.uber.org/zap v1.27.1
+	go.uber.org/zap v1.28.0
 )
 
 require (
