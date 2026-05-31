@@ -83,13 +83,25 @@ def calculate_stickiness_metrics(df: pl.DataFrame) -> tuple[pl.DataFrame, dict]:
         .sort("current_week")
     )
 
-    # Calculate 4-week rolling active users (approximation of MAU)
-    wau = wau.with_columns(
-        pl.col("wau").rolling_max(window_size=4, min_samples=1).alias("mau_rolling_max")
+    # Calculate true MAU: distinct users over a trailing 4-week window. Each active
+    # (user, week) contributes to the MAU of that week and the next three, so distinct
+    # users per target week is exactly the trailing-4-week unique count.
+    mau = (
+        df.select("UserID", "current_week")
+        .unique()
+        .with_columns(
+            pl.int_ranges(pl.col("current_week"), pl.col("current_week") + 4).alias("window_week")
+        )
+        .explode("window_week")
+        .group_by("window_week")
+        .agg(pl.col("UserID").n_unique().alias("mau"))
     )
+    wau = wau.join(mau, left_on="current_week", right_on="window_week", how="left")
 
     # Calculate stickiness ratio (WAU / MAU)
-    wau = wau.with_columns((pl.col("wau") / pl.col("mau_rolling_max")).alias("stickiness_ratio"))
+    wau = wau.with_columns((pl.col("wau") / pl.col("mau")).alias("stickiness_ratio")).sort(
+        "current_week"
+    )
 
     # Add week date
     wau = wau.with_columns(
@@ -102,7 +114,7 @@ def calculate_stickiness_metrics(df: pl.DataFrame) -> tuple[pl.DataFrame, dict]:
     summary_stats = {
         "avg_stickiness": wau.select(pl.col("stickiness_ratio").mean())[0, 0],
         "current_wau": wau.select(pl.col("wau").tail(1))[0, 0],
-        "current_mau": wau.select(pl.col("mau_rolling_max").tail(1))[0, 0],
+        "current_mau": wau.select(pl.col("mau").tail(1))[0, 0],
     }
 
     return wau, summary_stats

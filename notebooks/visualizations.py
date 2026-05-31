@@ -259,9 +259,9 @@ def display_stickiness_analysis(stickiness_df: pl.DataFrame, summary_stats: dict
         fig_wau_mau.add_trace(
             go.Scatter(
                 x=stickiness_df["week_date"],
-                y=stickiness_df["mau_rolling_max"],
+                y=stickiness_df["mau"],
                 mode="lines+markers",
-                name="MAU (4-week rolling)",
+                name="MAU (4-week distinct)",
                 line=dict(color="green"),
             )
         )
@@ -389,3 +389,166 @@ def display_cohort_engagement_analysis(cohort_engagement_df: pl.DataFrame) -> No
                 "Week 4 Avg Events",
                 f"{week_4_engagement['avg_events_per_user'][0]:.2f}",
             )
+
+
+def display_new_installs_analysis(new_installs: pl.DataFrame) -> None:
+    """Display new installs and launch volume derived from start beacons."""
+    st.header("New Installs & Launches")
+    st.caption("Derived from `start` (app-launch) beacons — a cleaner signal than events.")
+
+    recent = new_installs.tail(1)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("New Installs (Last Week)", f"{recent['new_installs'][0]:,}")
+    with col2:
+        st.metric("Launches (Last Week)", f"{recent['launches'][0]:,}")
+
+    pdf = new_installs.to_pandas()
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            x=pdf["week_date"],
+            y=pdf["new_installs"],
+            name="New Installs",
+            marker_color="rgba(99, 110, 250, 0.7)",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=pdf["week_date"],
+            y=pdf["active_installs"],
+            name="Active Installs",
+            mode="lines",
+            line=dict(color="rgba(0, 204, 150, 0.9)"),
+        )
+    )
+    fig.update_layout(
+        title="New Installs vs Active Installs per Week",
+        xaxis_title="Week",
+        yaxis_title="Installs",
+        hovermode="x unified",
+    )
+    st.plotly_chart(fig, width="stretch")
+
+
+def display_version_adoption_analysis(version_adoption: pl.DataFrame) -> None:
+    """Display version adoption share over time as a stacked area chart."""
+    st.header("Version Adoption")
+
+    fig = px.area(
+        version_adoption.to_pandas(),
+        x="week_date",
+        y="share",
+        color="version",
+        title="Share of Active Installs by Version",
+        labels={"week_date": "Week", "share": "Share of Installs", "version": "Version"},
+    )
+    fig.update_yaxes(tickformat=".0%")
+    st.plotly_chart(fig, width="stretch")
+
+
+def display_deployment_scale_analysis(scale: pl.DataFrame) -> None:
+    """Display the distribution of installs by deployment size (running containers)."""
+    st.header("Deployment Scale")
+    st.caption("Installs grouped by number of running containers (latest report per install).")
+
+    fig = px.bar(
+        scale.to_pandas(),
+        x="container_bucket",
+        y="installs",
+        title="Installs by Deployment Size",
+        labels={"container_bucket": "Running Containers", "installs": "Installs"},
+    )
+    st.plotly_chart(fig, width="stretch")
+
+
+def display_auth_mix_analysis(auth_mix: pl.DataFrame) -> None:
+    """Display auth-provider share over time as a stacked area chart."""
+    st.header("Authentication Mix")
+
+    fig = px.area(
+        auth_mix.to_pandas(),
+        x="week_date",
+        y="share",
+        color="AuthProvider",
+        title="Share of Active Installs by Auth Provider",
+        labels={"week_date": "Week", "share": "Share of Installs", "AuthProvider": "Auth Provider"},
+    )
+    fig.update_yaxes(tickformat=".0%")
+    st.plotly_chart(fig, width="stretch")
+
+
+def display_concurrent_clients_analysis(clients: pl.DataFrame) -> None:
+    """Display average and peak concurrent browser clients per install over time."""
+    st.header("Concurrent Clients")
+
+    pdf = clients.to_pandas()
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=pdf["week_date"],
+            y=pdf["avg_clients"],
+            name="Avg peak clients / install",
+            mode="lines+markers",
+            line=dict(color="blue"),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=pdf["week_date"],
+            y=pdf["max_clients"],
+            name="Max clients (any install)",
+            mode="lines",
+            line=dict(color="orange", dash="dot"),
+        )
+    )
+    fig.update_layout(
+        title="Concurrent Browser Clients per Install",
+        xaxis_title="Week",
+        yaxis_title="Clients",
+        hovermode="x unified",
+    )
+    st.plotly_chart(fig, width="stretch")
+
+
+def display_feature_adoption_analysis(feature_adoption: pl.DataFrame) -> None:
+    """Display feature-flag adoption over time as a multi-line chart."""
+    st.header("Feature Adoption")
+
+    fig = px.line(
+        feature_adoption.to_pandas(),
+        x="week_date",
+        y="adoption",
+        color="feature",
+        title="Share of Active Installs with Each Feature Enabled",
+        labels={"week_date": "Week", "adoption": "Adoption", "feature": "Feature"},
+    )
+    fig.update_traces(mode="lines+markers")
+    fig.update_yaxes(tickformat=".0%")
+    st.plotly_chart(fig, width="stretch")
+
+
+def display_browser_mix_analysis(browser_df: pl.DataFrame, os_df: pl.DataFrame) -> None:
+    """Display browser-family and OS-family distributions side by side."""
+    st.header("Browser & OS Mix")
+    st.caption("Latest reported user agent per install.")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        fig_b = px.bar(
+            browser_df.to_pandas(),
+            x="browser_family",
+            y="installs",
+            title="By Browser",
+            labels={"browser_family": "Browser", "installs": "Installs"},
+        )
+        st.plotly_chart(fig_b, width="stretch")
+    with col2:
+        fig_o = px.bar(
+            os_df.to_pandas(),
+            x="os_family",
+            y="installs",
+            title="By OS",
+            labels={"os_family": "OS", "installs": "Installs"},
+        )
+        st.plotly_chart(fig_o, width="stretch")
