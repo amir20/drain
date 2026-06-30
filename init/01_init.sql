@@ -36,6 +36,11 @@ SET
 SELECT
     add_compression_policy ('beacon', INTERVAL '7 days');
 
+-- Add retention policy: drop raw beacon data older than 1 year.
+-- The daily continuous aggregates below retain their rollups, so summaries are kept.
+SELECT
+    add_retention_policy ('beacon', drop_after => INTERVAL '1 year');
+
 -- Materialized views
 CREATE MATERIALIZED VIEW mv_client_activations AS
 SELECT
@@ -82,6 +87,12 @@ ON daily_client_events(client_id, day);
 CREATE INDEX idx_daily_client_events_metadata
 ON daily_client_events USING GIN (last_metadata);
 
+-- Compress the aggregate. compress_after must exceed the refresh policy's
+-- start_offset (1 year) so the compression and refresh windows never overlap.
+ALTER MATERIALIZED VIEW daily_client_events SET (timescaledb.compress = true);
+
+SELECT add_compression_policy('daily_client_events', compress_after => INTERVAL '13 months');
+
 CREATE MATERIALIZED VIEW daily_client_starts
 WITH (timescaledb.continuous) AS
 SELECT
@@ -108,3 +119,9 @@ ON daily_client_starts(client_id, day);
 
 CREATE INDEX idx_daily_client_starts_metadata
 ON daily_client_starts USING GIN (last_metadata);
+
+-- Compress the aggregate. compress_after must exceed the refresh policy's
+-- start_offset (1 year) so the compression and refresh windows never overlap.
+ALTER MATERIALIZED VIEW daily_client_starts SET (timescaledb.compress = true);
+
+SELECT add_compression_policy('daily_client_starts', compress_after => INTERVAL '13 months');
