@@ -38,9 +38,7 @@ func NewPostgresWriter(logger *zap.SugaredLogger, user, pass string) (*PostgresW
 }
 
 func (p *PostgresWriter) Start() chan internal.Event {
-	p.wg.Add(1)
-	go func() {
-		defer p.wg.Done()
+	p.wg.Go(func() {
 		for event := range p.channel {
 			jsonText, err := json.Marshal(event)
 			if err != nil {
@@ -52,7 +50,7 @@ func (p *PostgresWriter) Start() chan internal.Event {
 				p.logger.Errorf("failed to insert event: %v", err)
 			}
 		}
-	}()
+	})
 	return p.channel
 }
 

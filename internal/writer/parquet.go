@@ -35,9 +35,7 @@ func NewParquetWriter(logger *zap.SugaredLogger) *ParquetWriter {
 }
 
 func (p *ParquetWriter) Start() chan internal.Event {
-	p.wg.Add(1)
-	go func() {
-		defer p.wg.Done()
+	p.wg.Go(func() {
 		for {
 			file, err := os.Create(fmt.Sprintf("data/data-%d.temp", time.Now().Unix()))
 			if err != nil {
@@ -92,7 +90,7 @@ func (p *ParquetWriter) Start() chan internal.Event {
 				break
 			}
 		}
-	}()
+	})
 
 	return p.channel
 }

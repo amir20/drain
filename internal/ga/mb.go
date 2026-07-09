@@ -12,9 +12,9 @@ import (
 )
 
 func SendEvent(row internal.Event, event string, logger *zap.SugaredLogger) error {
-	postBody := map[string]interface{}{
+	postBody := map[string]any{
 		"client_id": row.RemoteIP,
-		"events": []map[string]interface{}{
+		"events": []map[string]any{
 			{
 				"name":   event,
 				"params": row,
@@ -24,7 +24,7 @@ func SendEvent(row internal.Event, event string, logger *zap.SugaredLogger) erro
 
 	return doRequest(postBody, logger)
 }
-func doRequest(body map[string]interface{}, logger *zap.SugaredLogger) error {
+func doRequest(body map[string]any, logger *zap.SugaredLogger) error {
 	jsonValue, err := json.Marshal(body)
 	if err != nil {
 		return err
