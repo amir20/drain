@@ -7,7 +7,7 @@ requires-python = ">=3.14.6"
 dependencies = [
     "plotly>=6.8.0",
     "polars>=1.41.2",
-    "pyarrow>=24.0.0",  # Override streamlit's constraint
+    "pyarrow>=25.0.0",  # Override streamlit's constraint
     "streamlit>=1.58.0",
     "watchdog>=6.0.0",
 ]
