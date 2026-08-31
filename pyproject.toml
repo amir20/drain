@@ -5,7 +5,7 @@ description = "Dashboard for Dozzle"
 readme = "README.md"
 requires-python = ">=3.14.6"
 dependencies = [
-    "plotly>=6.8.0",
+    "plotly>=7.0.0",
     "polars>=1.41.2",
     "pyarrow>=25.0.0",  # Override streamlit's constraint
     "streamlit>=1.58.0",
