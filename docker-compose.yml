@@ -24,6 +24,21 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=your_password
+      # Referenced as $$POSTGRES_* by the provisioned datasource.
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - POSTGRES_DB=${POSTGRES_DB:-drain}
+    configs:
+      - source: grafana_datasource
+        target: /etc/grafana/provisioning/datasources/timescaledb.yaml
+      - source: grafana_dashboard_provider
+        target: /etc/grafana/provisioning/dashboards/dozzle.yaml
+      - source: dashboard_retention
+        target: /etc/grafana/dashboards/dozzle-retention.json
+      - source: dashboard_usage
+        target: /etc/grafana/dashboards/dozzle-usage.json
+      - source: dashboard_features
+        target: /etc/grafana/dashboards/dozzle-features.json
   scheduler:
     image: mcuadros/ofelia:latest
     command: daemon --docker
@@ -46,6 +61,24 @@ volumes:
   postgres_data:
   grafana-storage:
 
+# Swarm configs are immutable, so every config carries a version suffix that the
+# deploy workflow sets to the commit sha. Bumping the file content alone is not
+# enough - the name has to change for `docker stack deploy` to pick it up.
 configs:
   postgresql_conf:
     file: ./init/01_init.sql
+  grafana_datasource:
+    name: grafana_datasource_${CONFIG_VERSION:-dev}
+    file: ./grafana/provisioning/datasources/timescaledb.yaml
+  grafana_dashboard_provider:
+    name: grafana_dashboard_provider_${CONFIG_VERSION:-dev}
+    file: ./grafana/provisioning/dashboards/dozzle.yaml
+  dashboard_retention:
+    name: dashboard_retention_${CONFIG_VERSION:-dev}
+    file: ./grafana/dashboards/dozzle-retention.json
+  dashboard_usage:
+    name: dashboard_usage_${CONFIG_VERSION:-dev}
+    file: ./grafana/dashboards/dozzle-usage.json
+  dashboard_features:
+    name: dashboard_features_${CONFIG_VERSION:-dev}
+    file: ./grafana/dashboards/dozzle-features.json

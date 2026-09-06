@@ -1,0 +1,15 @@
+apiVersion: 1
+
+providers:
+  - name: dozzle
+    orgId: 1
+    folder: Dozzle
+    type: file
+    disableDeletion: false
+    # Edits made in the UI stick until the file changes, so a dashboard can be
+    # tweaked live and then copied back into the repo.
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: false
