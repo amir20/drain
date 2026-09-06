@@ -1,0 +1,1054 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Which Dozzle features people actually turn on, and who turns them on.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": true,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [
+        "dozzle"
+      ],
+      "targetBlank": false,
+      "title": "Dozzle dashboards",
+      "tooltip": "",
+      "type": "dashboards",
+      "url": ""
+    }
+  ],
+  "panels": [
+    {
+      "type": "text",
+      "title": "How to read this",
+      "description": "",
+      "id": 1,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 3
+      },
+      "options": {
+        "mode": "markdown",
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "**Adoption is measured per install, from its most recent beacon in the selected range.**\nFour fields in the beacon payload never come back set - `hasShell`, `remoteAgents`,\n`remoteClients` and `filterLength` are always zero/false, as are `mode` and `subCommand` -\nso they are left off these charts rather than drawn as flat zero lines. If any of those\nfeatures shipped, the beacon is not reporting them."
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Feature penetration today",
+      "description": "Share of installs active in the selected range whose most recent beacon has each feature turned on. Read it as: of everyone using Dozzle right now, how many have found this.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${datasource}"
+      },
+      "id": 2,
+      "gridPos": {
+        "x": 0,
+        "y": 3,
+        "w": 10,
+        "h": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "decimals": 1,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3987e5"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "namePlacement": "auto",
+        "sizing": "auto",
+        "minVizWidth": 8,
+        "minVizHeight": 16,
+        "maxVizHeight": 300,
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH\n  latest AS (\n    SELECT DISTINCT ON (client_id) client_id, last_metadata AS m\n    FROM daily_client_events\n    WHERE client_id <> '' AND $__timeFilter(day)\n    ORDER BY client_id, day DESC\n  ),\n  f AS (\n    SELECT t.feature, t.enabled\n    FROM latest l\n    CROSS JOIN LATERAL (VALUES\n      ('Container actions', coalesce((l.m->>'hasActions')::boolean, false)),\n      ('Authentication', coalesce(nullif(l.m->>'authProvider', ''), 'none') <> 'none'),\n      ('Custom hostname', coalesce((l.m->>'hasHostname')::boolean, false)),\n      ('Custom address', coalesce((l.m->>'hasCustomAddress')::boolean, false)),\n      ('Custom base path', coalesce((l.m->>'hasCustomBase')::boolean, false)),\n      ('Swarm mode', coalesce((l.m->>'isSwarmMode')::boolean, false)),\n      ('Multiple browsers', coalesce((l.m->>'clients')::int, 0) > 1)\n    ) AS t(feature, enabled)\n  )\nSELECT feature AS \"Feature\",\n       round(100.0 * count(*) FILTER (WHERE enabled) / count(*), 2) AS \"Adoption\"\nFROM f\nGROUP BY 1\nORDER BY 2 DESC;",
+          "refId": "A",
+          "sql": {
+            "columns": [],
+            "groupBy": []
+          }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Feature penetration over time",
+      "description": "The six features worth tracking, as a share of the active base each week. A flat line under a release means the feature is not reaching existing installs.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${datasource}"
+      },
+      "id": 3,
+      "gridPos": {
+        "x": 10,
+        "y": 3,
+        "w": 14,
+        "h": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 8,
+            "barAlignment": 0,
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "insertNulls": false,
+            "pointShape": "circle"
+          },
+          "unit": "percent",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Container actions"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3987e5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Authentication"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Custom hostname"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#199e70"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Custom address"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#c98500"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Custom base path"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d55181"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Multiple browsers"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#008300"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false,
+          "maxHeight": 600
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH\n  wk AS (\n    SELECT DISTINCT ON (client_id, date_trunc('week', day))\n           date_trunc('week', day) AS week,\n           client_id,\n           last_metadata AS m\n    FROM daily_client_events\n    WHERE client_id <> '' AND $__timeFilter(day)\n    ORDER BY client_id, date_trunc('week', day), day DESC\n  ),\n  f AS (\n    SELECT wk.week, t.feature, t.enabled\n    FROM wk\n    CROSS JOIN LATERAL (VALUES\n      ('Container actions', coalesce((wk.m->>'hasActions')::boolean, false)),\n      ('Authentication', coalesce(nullif(wk.m->>'authProvider', ''), 'none') <> 'none'),\n      ('Custom hostname', coalesce((wk.m->>'hasHostname')::boolean, false)),\n      ('Custom address', coalesce((wk.m->>'hasCustomAddress')::boolean, false)),\n      ('Custom base path', coalesce((wk.m->>'hasCustomBase')::boolean, false)),\n      ('Multiple browsers', coalesce((wk.m->>'clients')::int, 0) > 1)\n    ) AS t(feature, enabled)\n  )\nSELECT week AS time, feature AS metric,\n       round(100.0 * count(*) FILTER (WHERE enabled) / count(*), 2) AS value\nFROM f\nGROUP BY 1, 2\nORDER BY 1;",
+          "refId": "A",
+          "sql": {
+            "columns": [],
+            "groupBy": []
+          }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Authentication provider mix",
+      "description": "Share of active installs by configured auth provider. 'none' is the unauthenticated default.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${datasource}"
+      },
+      "id": 4,
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 12,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 8,
+            "barAlignment": 0,
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "insertNulls": false,
+            "pointShape": "circle"
+          },
+          "unit": "percent",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "max": 100
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "none"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#898781"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false,
+          "maxHeight": 600
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH\n  wk AS (\n    SELECT DISTINCT ON (client_id, date_trunc('week', day))\n           date_trunc('week', day) AS week,\n           client_id,\n           coalesce(nullif(last_metadata->>'authProvider', ''), 'none') AS provider\n    FROM daily_client_events\n    WHERE client_id <> '' AND $__timeFilter(day)\n    ORDER BY client_id, date_trunc('week', day), day DESC\n  ),\n  totals AS (SELECT week, count(*) AS total FROM wk GROUP BY 1)\nSELECT w.week AS time, w.provider AS metric, round(100.0 * count(*) / t.total, 2) AS value\nFROM wk w\nJOIN totals t ON t.week = w.week\nGROUP BY 1, 2, t.total\nORDER BY 1;",
+          "refId": "A",
+          "sql": {
+            "columns": [],
+            "groupBy": []
+          }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Deployment size mix",
+      "description": "Active installs bucketed by the number of running containers they report. Shows whether Dozzle is spreading into bigger deployments over time.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${datasource}"
+      },
+      "id": 5,
+      "gridPos": {
+        "x": 12,
+        "y": 15,
+        "w": 12,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 8,
+            "barAlignment": 0,
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "insertNulls": false,
+            "pointShape": "circle"
+          },
+          "unit": "percent",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "max": 100
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "1 - none"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#184f95"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "2 - 1 to 5"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#256abf"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "3 - 6 to 20"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3987e5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "4 - 21 to 50"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#6da7ec"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5 - 51 to 200"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#9ec5f4"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "6 - over 200"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#b7d3f6"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "7 - unknown"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#898781"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false,
+          "maxHeight": 600
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH\n  wk AS (\n    SELECT DISTINCT ON (client_id, date_trunc('week', day))\n           date_trunc('week', day) AS week,\n           client_id,\n           (last_metadata->>'runningContainers')::int AS c\n    FROM daily_client_events\n    WHERE client_id <> '' AND $__timeFilter(day)\n    ORDER BY client_id, date_trunc('week', day), day DESC\n  ),\n  bucketed AS (SELECT week, CASE\n             WHEN c IS NULL THEN '7 - unknown'\n             WHEN c = 0     THEN '1 - none'\n             WHEN c <= 5    THEN '2 - 1 to 5'\n             WHEN c <= 20   THEN '3 - 6 to 20'\n             WHEN c <= 50   THEN '4 - 21 to 50'\n             WHEN c <= 200  THEN '5 - 51 to 200'\n             ELSE '6 - over 200'\n           END AS bucket FROM wk),\n  totals AS (SELECT week, count(*) AS total FROM bucketed GROUP BY 1)\nSELECT b.week AS time, b.bucket AS metric, round(100.0 * count(*) / t.total, 2) AS value\nFROM bucketed b\nJOIN totals t ON t.week = b.week\nGROUP BY 1, 2, t.total\nORDER BY 1;",
+          "refId": "A",
+          "sql": {
+            "columns": [],
+            "groupBy": []
+          }
+        }
+      ]
+    },
+    {
+      "type": "piechart",
+      "title": "Browser",
+      "description": "Browser family of the most recent beacon per install.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${datasource}"
+      },
+      "id": 6,
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 8,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "pieType": "donut",
+        "displayLabels": [
+          "percent"
+        ],
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value"
+          ]
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none",
+          "hideZeros": false
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH\n  latest AS (\n    SELECT DISTINCT ON (client_id) client_id, last_metadata AS m\n    FROM daily_client_events\n    WHERE client_id <> '' AND $__timeFilter(day)\n    ORDER BY client_id, day DESC\n  )\nSELECT CASE\n             WHEN ua IS NULL OR ua = ''                        THEN 'Unknown'\n             WHEN ua LIKE '%Edg/%' OR ua LIKE '%Edge/%'        THEN 'Edge'\n             WHEN ua LIKE '%OPR/%' OR ua LIKE '%Opera%'        THEN 'Opera'\n             WHEN ua LIKE '%Firefox/%'                         THEN 'Firefox'\n             WHEN ua LIKE '%Chrome/%'                          THEN 'Chrome'\n             WHEN ua LIKE '%Safari/%'                          THEN 'Safari'\n             ELSE 'Other'\n           END AS \"Browser\", count(*)::bigint AS \"Installs\"\nFROM (SELECT m->>'browser' AS ua FROM latest) x\nGROUP BY 1\nORDER BY 2 DESC;",
+          "refId": "A",
+          "sql": {
+            "columns": [],
+            "groupBy": []
+          }
+        }
+      ]
+    },
+    {
+      "type": "piechart",
+      "title": "Operating system",
+      "description": "OS family parsed from the reported user agent.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${datasource}"
+      },
+      "id": 7,
+      "gridPos": {
+        "x": 8,
+        "y": 24,
+        "w": 8,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "pieType": "donut",
+        "displayLabels": [
+          "percent"
+        ],
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value"
+          ]
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none",
+          "hideZeros": false
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH\n  latest AS (\n    SELECT DISTINCT ON (client_id) client_id, last_metadata AS m\n    FROM daily_client_events\n    WHERE client_id <> '' AND $__timeFilter(day)\n    ORDER BY client_id, day DESC\n  )\nSELECT CASE\n             WHEN ua IS NULL OR ua = ''      THEN 'Unknown'\n             WHEN ua LIKE '%Windows%'        THEN 'Windows'\n             WHEN ua LIKE '%Android%'        THEN 'Android'\n             WHEN ua LIKE '%iPhone%' OR ua LIKE '%iPad%' OR ua LIKE '%iPod%' THEN 'iOS'\n             WHEN ua LIKE '%Mac OS X%' OR ua LIKE '%Macintosh%' THEN 'macOS'\n             WHEN ua LIKE '%Linux%' OR ua LIKE '%X11%' THEN 'Linux'\n             ELSE 'Other'\n           END AS \"Operating system\", count(*)::bigint AS \"Installs\"\nFROM (SELECT m->>'browser' AS ua FROM latest) x\nGROUP BY 1\nORDER BY 2 DESC;",
+          "refId": "A",
+          "sql": {
+            "columns": [],
+            "groupBy": []
+          }
+        }
+      ]
+    },
+    {
+      "type": "barchart",
+      "title": "Features per install",
+      "description": "How many of the six configurable features each install has on. A tall bar at 0-1 means most people never move past the defaults.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${datasource}"
+      },
+      "id": 8,
+      "gridPos": {
+        "x": 16,
+        "y": 24,
+        "w": 8,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#9085e9"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "auto",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 100,
+        "showValue": "auto",
+        "stacking": "none",
+        "groupWidth": 0.7,
+        "barWidth": 0.85,
+        "barRadius": 0.15,
+        "fullHighlight": false,
+        "tooltip": {
+          "mode": "single",
+          "sort": "none",
+          "hideZeros": false
+        },
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH\n  latest AS (\n    SELECT DISTINCT ON (client_id) client_id, last_metadata AS m\n    FROM daily_client_events\n    WHERE client_id <> '' AND $__timeFilter(day)\n    ORDER BY client_id, day DESC\n  ),\n  scored AS (\n    SELECT (coalesce((m->>'hasActions')::boolean, false))::int\n         + (coalesce((m->>'hasHostname')::boolean, false))::int\n         + (coalesce((m->>'hasCustomAddress')::boolean, false))::int\n         + (coalesce((m->>'hasCustomBase')::boolean, false))::int\n         + (coalesce((m->>'isSwarmMode')::boolean, false))::int\n         + (coalesce(nullif(m->>'authProvider', ''), 'none') <> 'none')::int AS features\n    FROM latest\n  )\nSELECT features::text AS \"Features enabled\", count(*)::bigint AS \"Installs\"\nFROM scored\nGROUP BY features\nORDER BY features;",
+          "refId": "A",
+          "sql": {
+            "columns": [],
+            "groupBy": []
+          }
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Feature penetration by deployment size",
+      "description": "The same features cut by how many containers the install runs. Features that only land in large deployments show up as a rising column.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${datasource}"
+      },
+      "id": 9,
+      "gridPos": {
+        "x": 0,
+        "y": 33,
+        "w": 24,
+        "h": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "right",
+            "inspect": false,
+            "cellOptions": {
+              "type": "color-background",
+              "mode": "gradient"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [],
+          "unit": "percent",
+          "min": 0,
+          "max": 25,
+          "decimals": 1,
+          "color": {
+            "mode": "continuous-blues"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Deployment size"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 160
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Installs"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH\n  latest AS (\n    SELECT DISTINCT ON (client_id) client_id, last_metadata AS m\n    FROM daily_client_events\n    WHERE client_id <> '' AND $__timeFilter(day)\n    ORDER BY client_id, day DESC\n  ),\n  bucketed AS (\n    SELECT m, CASE\n             WHEN c IS NULL THEN 'Unknown'\n             WHEN c = 0     THEN 'None'\n             WHEN c <= 5    THEN '1-5'\n             WHEN c <= 20   THEN '6-20'\n             WHEN c <= 50   THEN '21-50'\n             WHEN c <= 200  THEN '51-200'\n             ELSE 'Over 200'\n           END AS bucket,\n           CASE WHEN c IS NULL THEN 7 WHEN c = 0 THEN 1 WHEN c <= 5 THEN 2\n                WHEN c <= 20 THEN 3 WHEN c <= 50 THEN 4 WHEN c <= 200 THEN 5 ELSE 6 END AS ord\n    FROM (SELECT m, (m->>'runningContainers')::int AS c FROM latest) x\n  )\nSELECT bucket AS \"Deployment size\",\n       count(*)::bigint AS \"Installs\",\n       round(100.0 * count(*) FILTER (WHERE coalesce((m->>'hasActions')::boolean, false)) / count(*), 1) AS \"Actions\",\n       round(100.0 * count(*) FILTER (WHERE coalesce(nullif(m->>'authProvider', ''), 'none') <> 'none') / count(*), 1) AS \"Auth\",\n       round(100.0 * count(*) FILTER (WHERE coalesce((m->>'hasHostname')::boolean, false)) / count(*), 1) AS \"Hostname\",\n       round(100.0 * count(*) FILTER (WHERE coalesce((m->>'hasCustomAddress')::boolean, false)) / count(*), 1) AS \"Address\",\n       round(100.0 * count(*) FILTER (WHERE coalesce((m->>'hasCustomBase')::boolean, false)) / count(*), 1) AS \"Base path\",\n       round(100.0 * count(*) FILTER (WHERE coalesce((m->>'clients')::int, 0) > 1) / count(*), 1) AS \"Multi-browser\"\nFROM bucketed\nGROUP BY bucket, ord\nORDER BY ord;",
+          "refId": "A",
+          "sql": {
+            "columns": [],
+            "groupBy": []
+          }
+        }
+      ]
+    }
+  ],
+  "preload": false,
+  "refresh": "",
+  "schemaVersion": 41,
+  "tags": [
+    "dozzle",
+    "features"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "label": "Data source",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "grafana-postgresql-datasource",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Dozzle \u00b7 Feature penetration",
+  "uid": "dozzle-features",
+  "version": 1,
+  "weekStart": "monday"
+}

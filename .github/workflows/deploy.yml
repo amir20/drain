@@ -44,3 +44,5 @@ jobs:
           ssh_cert: ${{ secrets.SSH_CERT }}
           ssh_key: ${{ secrets.SSH_KEY }}
       - run: docker --context beacon stack deploy -c docker-compose.yml -c docker-compose.prod.yml data
+        env:
+          CONFIG_VERSION: ${{ github.sha }}
