@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.2](https://github.com/amir20/drain/compare/v1.1.1...v1.1.2) (2026-09-07)
+
+### Bug Fixes
+
+* **deploy:** version the postgres init config name ([942c96e](https://github.com/amir20/drain/commit/942c96e1cd5a259dc49671c9f84380d1d45ad41e))
+
 ## [1.1.1](https://github.com/amir20/drain/compare/v1.1.0...v1.1.1) (2026-09-07)
 
 ### Bug Fixes
