@@ -28,7 +28,8 @@ services:
       - postgres_password
   dashboard:
     # Only the OAuth client id stays an environment variable: it is a public identifier
-    # that ships in the redirect URL, not a credential. The three that are credentials
+    # that ships in the redirect URL, not a credential, so it is a repository *variable*
+    # - readable, unlike a secret, which is what lets a by-hand deploy reproduce it. The three that are credentials
     # arrive as files, which the image's entrypoint expands before Nuxt starts - it also
     # builds NUXT_DATABASE_URL out of the same postgres_password secret the database
     # uses, so the password exists in exactly one place.
@@ -55,17 +56,23 @@ networks:
   web:
     external: true
 
-# Swarm secrets are immutable, exactly like the configs above, so each one carries the
-# same commit-sha suffix: changing only the file's contents leaves the running services
-# on the old value. The deploy workflow writes these files from GitHub secrets and they
-# never exist in the repository - ./secrets is gitignored.
+# Created once on the host, not shipped by the deploy - so deploying needs no credential
+# at hand and does not have to come from CI. `docker stack deploy` only names them.
+# See "Deploying" in README.md for the bootstrap commands.
+#
+# Swarm secrets are immutable and cannot be removed while a service uses them, so the
+# version suffix is how they rotate: create `_v2`, change the name here, deploy, then
+# remove `_v1`. That makes each rotation an ordinary reviewable commit.
+#
+# The key on the left is what the container sees - /run/secrets/postgres_password -
+# regardless of the external name, so a rotation never touches the application.
 secrets:
   postgres_password:
-    name: postgres_password_${CONFIG_VERSION:-dev}
-    file: ./secrets/postgres_password
+    external: true
+    name: drain_postgres_password_v1
   oauth_github_client_secret:
-    name: oauth_github_client_secret_${CONFIG_VERSION:-dev}
-    file: ./secrets/oauth_github_client_secret
+    external: true
+    name: drain_oauth_github_client_secret_v1
   session_password:
-    name: session_password_${CONFIG_VERSION:-dev}
-    file: ./secrets/session_password
+    external: true
+    name: drain_session_password_v1

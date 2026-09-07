@@ -76,39 +76,18 @@ jobs:
       # DASHBOARD_ALLOWED_USERS, not GITHUB_ALLOWED_USERS: Actions reserves the GITHUB_
       # prefix, so a variable by that name cannot be created and `vars.GITHUB_*` always
       # expands to empty - which compose's `:-` default would silently paper over.
-      # Every credential reaches the stack as a Docker secret, so it is a file on disk
-      # here rather than a variable compose interpolates: an interpolated one ends up in
-      # the service's environment, which `docker service inspect` prints in full. These
-      # files are written to a gitignored ./secrets and live only on the runner.
-      #
-      # An unset GitHub secret would otherwise write an empty file and deploy a stack
-      # that fails at connection time, so each one is checked before anything is shipped.
-      - name: Stage secrets
-        run: |
-          mkdir -p secrets && chmod 700 secrets
-          write() {
-            if [ -z "$2" ]; then echo "::error::GitHub secret $3 is not set"; exit 1; fi
-            printf '%s' "$2" > "secrets/$1"
-            chmod 600 "secrets/$1"
-          }
-          write postgres_password           "$POSTGRES_PASSWORD"           POSTGRES_PASSWORD
-          write oauth_github_client_secret  "$OAUTH_GITHUB_CLIENT_SECRET"  OAUTH_GITHUB_CLIENT_SECRET
-          write session_password            "$SESSION_PASSWORD"            SESSION_PASSWORD
-        env:
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          OAUTH_GITHUB_CLIENT_SECRET: ${{ secrets.OAUTH_GITHUB_CLIENT_SECRET }}
-          SESSION_PASSWORD: ${{ secrets.SESSION_PASSWORD }}
+      # No credential passes through here. The database password, OAuth client secret and
+      # session password are Docker secrets created once on the host (README, "Deploying"),
+      # and this step only names them - so the same command deploys by hand, and a
+      # compromise of this workflow does not hand over the credentials themselves.
       - run: |
           export CONFIG_VERSION="${GITHUB_SHA::12}"
           docker --context beacon stack deploy -c docker-compose.yml -c docker-compose.prod.yml data
         env:
           GITHUB_ALLOWED_USERS: ${{ vars.DASHBOARD_ALLOWED_USERS }}
-          # Not a credential: the OAuth client id is public, and it ships in the redirect
-          # URL on every sign-in.
-          OAUTH_GITHUB_CLIENT_ID: ${{ secrets.OAUTH_GITHUB_CLIENT_ID }}
-      - name: Remove staged secrets
-        if: always()
-        run: rm -rf secrets
+          # Public identifier, not a credential: it ships in the redirect URL on every
+          # sign-in. A variable rather than a secret so a by-hand deploy can read it back.
+          OAUTH_GITHUB_CLIENT_ID: ${{ vars.OAUTH_GITHUB_CLIENT_ID }}
       # Swarm ignores depends_on, so `migrate` starts alongside the dashboard rather than
       # before it. Waiting on the job here is what turns a failed migration into a failed
       # deploy instead of a dashboard quietly serving 500s.
