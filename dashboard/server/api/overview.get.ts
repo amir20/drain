@@ -74,10 +74,8 @@ export default defineEventHandler(async (event) => {
         `SELECT week, active, new_installs, retained, resurrected, churned
            FROM weekly_lifecycle
           WHERE week BETWEEN $1 AND $2
-            -- the current week is partial; showing it reads as a collapse
-            AND week < date_trunc('week', CURRENT_DATE)::date
           ORDER BY week`,
-        [wk.from, range.to],
+        [wk.from, wk.to],
       ),
 
       // The launch-only funnel: installs are seeded from their first `start`, and split
@@ -87,11 +85,10 @@ export default defineEventHandler(async (event) => {
                 count(*) FILTER (WHERE ever_active)::int     AS became_active,
                 count(*) FILTER (WHERE NOT ever_active)::int AS launch_only
            FROM client_lifecycle
-          WHERE first_start_day BETWEEN $1 AND $2
-            -- the current week is still filling; plotting it reads as a collapse
-            AND first_start_day < date_trunc('week', CURRENT_DATE)::date
+          -- $2 is the Monday of the last complete week, so take it through its Sunday.
+          WHERE first_start_day >= $1 AND first_start_day < $2::date + 7
           GROUP BY 1 ORDER BY 1`,
-        [wk.from, range.to],
+        [wk.from, wk.to],
       ),
 
       query<{ ever_active: number; launch_only: number; active_28d: number }>(

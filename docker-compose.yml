@@ -1,6 +1,13 @@
 services:
   timescaledb:
     image: timescale/timescaledb:latest-pg17
+    # Every policy - compression, retention, the continuous-aggregate refreshes and the
+    # hourly analytics refresh registered by migrations/003 - runs in a background worker,
+    # and those come out of max_worker_processes along with parallel query workers. The
+    # extension allows 16 background workers while max_worker_processes sits at the
+    # Postgres default of 8, so most of them can never actually start. TimescaleDB wants
+    # max_worker_processes >= max_background_workers + max_parallel_workers + 1.
+    command: postgres -c max_worker_processes=32
     # Postgres allocates parallel hash joins and sorts out of /dev/shm, and Docker's 64MB
     # default is not enough for the analytics refresh: it fails with
     # "could not resize shared memory segment" (SQLSTATE 53100).
@@ -12,9 +19,12 @@ services:
       - postgres_data:/var/lib/postgresql/data
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
       - POSTGRES_DB=${POSTGRES_DB:-drain}
       - TIMESCALEDB_TELEMETRY=off
+      # The password is deliberately absent. Production mounts it as a Docker secret and
+      # dev sets it in docker-compose.override.yml, which `docker stack deploy` never
+      # reads. Keeping it out of this file is what lets every service treat the value
+      # the same way, with nothing for the production overlay to cancel.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 5s
@@ -42,27 +52,16 @@ services:
     depends_on:
       - timescaledb
     environment:
-      - NUXT_DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@timescaledb:5432/${POSTGRES_DB:-drain}
       - NUXT_GITHUB_ALLOWED_USERS=${GITHUB_ALLOWED_USERS:-amir20}
-      - NUXT_OAUTH_GITHUB_CLIENT_ID=${OAUTH_GITHUB_CLIENT_ID:-}
-      - NUXT_OAUTH_GITHUB_CLIENT_SECRET=${OAUTH_GITHUB_CLIENT_SECRET:-}
-      - NUXT_SESSION_PASSWORD=${SESSION_PASSWORD:-}
-  scheduler:
-    image: mcuadros/ofelia:latest
-    command: daemon --docker
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-  view-refresh:
-    image: postgres:18-alpine
-    command: tail -f /dev/null
-    labels:
-      ofelia.enabled: "true"
-      # Rebuilds the derived analytics tables the dashboard reads. Incremental: it
-      # reprocesses a trailing window rather than the whole history.
-      ofelia.job-exec.refresh.schedule: "@every 1h"
-      ofelia.job-exec.refresh.command: psql "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@timescaledb/${POSTGRES_DB:-drain}" -c 'CALL drain_refresh_analytics()'
-    depends_on:
-      - timescaledb
+      # No credentials and no database URL here. Production gets them as Docker secrets
+      # (docker-compose.prod.yml); dev gets the URL from docker-compose.override.yml and
+      # the OAuth pair from ./dashboard/.env. A `${VAR:-}` default in this file would
+      # resolve to an empty string, and compose ranks `environment` above `env_file` -
+      # so it would silently override .env and surface only as "Empty password" 500s.
+  # The hourly analytics refresh has no service of its own: migrations/003_schedule.sql
+  # registers it on TimescaleDB's job scheduler, alongside the compression and retention
+  # policies it already runs. `SELECT * FROM timescaledb_information.job_stats` is where
+  # its runs are reported.
   beacon:
     image: amir20/drain
     depends_on:

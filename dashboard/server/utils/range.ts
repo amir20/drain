@@ -174,19 +174,27 @@ export function resolveRange(event: H3Event): Range {
  */
 export const MIN_WEEKS = 8
 
-export function weeklyWindow(range: Range): { from: string; widened: boolean } {
-  const lastComplete = startOfWeek(new Date(`${range.to}T00:00:00Z`))
-  lastComplete.setUTCDate(lastComplete.getUTCDate() - 7)
+export function weeklyWindow(range: Range): { from: string; to: string; widened: boolean } {
+  // The last complete week: the one whose Sunday is on or before `to`, and never the
+  // current week, whose data is still arriving. Both ends are returned and the queries
+  // bind exactly these: a clip they applied themselves (`week < this Monday`) was a
+  // second definition, and it disagreed with this one on any range not ending today.
+  const to = new Date(`${range.to}T00:00:00Z`)
+  const lastComplete = startOfWeek(to)
+  if (to.getUTCDay() !== 0) lastComplete.setUTCDate(lastComplete.getUTCDate() - 7)
+  const thisWeek = startOfWeek(new Date(`${iso(new Date())}T00:00:00Z`))
+  if (lastComplete >= thisWeek) lastComplete.setTime(thisWeek.getTime() - 7 * DAY_MS)
+
   const completeWeeks =
     Math.floor(
       (lastComplete.getTime() - new Date(`${range.weekFrom}T00:00:00Z`).getTime()) / DAY_MS / 7,
     ) + 1
 
-  if (completeWeeks >= 2) return { from: range.weekFrom, widened: false }
+  if (completeWeeks >= 2) return { from: range.weekFrom, to: iso(lastComplete), widened: false }
 
   const widened = new Date(lastComplete)
   widened.setUTCDate(widened.getUTCDate() - (MIN_WEEKS - 1) * 7)
-  return { from: iso(widened), widened: true }
+  return { from: iso(widened), to: iso(lastComplete), widened: true }
 }
 
 /**

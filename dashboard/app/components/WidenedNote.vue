@@ -6,8 +6,8 @@ defineProps<{ widened?: boolean }>()
 
 <template>
   <p v-if="widened" class="note">
-    These measures are per calendar week, and the selected range holds no complete week —
-    showing the last {{ MIN_WEEKS }} complete weeks instead.
+    These measures are per calendar week, and the selected range holds fewer than two
+    complete weeks — showing the last {{ MIN_WEEKS }} complete weeks instead.
   </p>
 </template>
 

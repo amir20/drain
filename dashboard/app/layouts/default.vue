@@ -1,5 +1,8 @@
 <script setup lang="ts">
 const { loggedIn, user, clear } = useUserSession()
+// The chosen range lives only in the query string, so a bare path would reset every
+// page switch to the 30-day default.
+const route = useRoute()
 
 async function signOut() {
   await $fetch('/auth/logout', { method: 'POST' })
@@ -13,11 +16,11 @@ async function signOut() {
     <header class="topbar">
       <p class="brand">Dozzle <span>analytics</span></p>
       <nav class="nav">
-        <NuxtLink to="/">Overview</NuxtLink>
-        <NuxtLink to="/retention">Retention</NuxtLink>
-        <NuxtLink to="/engagement">Engagement</NuxtLink>
-        <NuxtLink to="/features">Features</NuxtLink>
-        <NuxtLink to="/environment">Environment</NuxtLink>
+        <NuxtLink :to="{ path: '/', query: route.query }">Overview</NuxtLink>
+        <NuxtLink :to="{ path: '/retention', query: route.query }">Retention</NuxtLink>
+        <NuxtLink :to="{ path: '/engagement', query: route.query }">Engagement</NuxtLink>
+        <NuxtLink :to="{ path: '/features', query: route.query }">Features</NuxtLink>
+        <NuxtLink :to="{ path: '/environment', query: route.query }">Environment</NuxtLink>
       </nav>
       <span class="spacer" />
       <RangePicker />

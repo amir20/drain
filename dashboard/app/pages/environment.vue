@@ -144,8 +144,9 @@ const versionOption = computed(() => {
   const named = mix.filter((v: string) => v !== 'unknown').sort(compareVersion)
   const rest = mix.filter((v: string) => v === 'unknown')
   const keys = [...named, ...rest, 'Other']
+  // ordinalRamp(t, 0) still returns one colour, which would land on 'unknown'.
   const colours = [
-    ...ordinalRamp(t, named.length),
+    ...(named.length ? ordinalRamp(t, named.length) : []),
     ...rest.map(() => t.ordinalNone),
     t.ordinalNone,
   ]

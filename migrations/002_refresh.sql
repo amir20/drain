@@ -270,6 +270,11 @@ BEGIN
 
   --------------------------------------------------------------------------
   -- 5. Cohort grid. Rebuilt whole; it is a few thousand rows out of a hash join.
+  --
+  -- Every week a cohort has lived through gets a row, including the ones with nobody
+  -- active. A missing cell would be indistinguishable from "not reached yet", and the
+  -- average curve would then average only the cohorts that still had someone - which
+  -- lifts the tail exactly where retention is being measured.
   --------------------------------------------------------------------------
   v_phase := clock_timestamp();
 
@@ -288,9 +293,19 @@ BEGIN
     JOIN client_lifecycle l ON l.client_id = w.client_id AND l.ever_active
     WHERE w.week >= l.first_event_week AND (w.week - l.first_event_week) / 7 <= 52
     GROUP BY 1, 2
+  ),
+  -- A cell exists once its week has fully elapsed: week_index N of a cohort starts on
+  -- cohort_week + 7N, and is over once the Monday after that has arrived. The current
+  -- week is therefore never stored, which is the rule every other weekly table follows.
+  grid AS (
+    SELECT c.cohort_week, i::smallint AS week_index, c.cohort_size
+    FROM cohorts c
+    CROSS JOIN generate_series(0, 52) AS i
+    WHERE c.cohort_week + 7 * (i + 1) <= date_trunc('week', CURRENT_DATE)::date
   )
-  SELECT a.cohort_week, a.week_index, c.cohort_size, a.actives
-  FROM activity a JOIN cohorts c ON c.cohort_week = a.cohort_week;
+  SELECT g.cohort_week, g.week_index, g.cohort_size, COALESCE(a.actives, 0)
+  FROM grid g
+  LEFT JOIN activity a ON a.cohort_week = g.cohort_week AND a.week_index = g.week_index;
 
   PERFORM drain_note_phase('phase_cohorts', v_phase);
   COMMIT;

@@ -1,7 +1,12 @@
+# Loaded automatically by `docker compose`, never by `docker stack deploy`. Everything
+# dev-only lives here - including the database password, so the production overlay has
+# nothing to cancel and every service reads the same value the same way.
 services:
   timescaledb:
     ports:
       - "5432:5432"
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
   beacon:
     build:
       context: .
@@ -10,16 +15,26 @@ services:
       - "4000:4000"
     volumes:
       - .:/build
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
   migrate:
     build:
       context: .
       target: dev
     command: ["go", "run", ".", "-migrate", "-dev"]
+    # The dev stage copies only go.mod and go.sum; the source arrives by bind mount, as
+    # it does for beacon. Without it `go run .` finds no Go files in /build.
+    volumes:
+      - .:/build
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
   dashboard:
     build:
       context: ./dashboard
     ports:
       - "3000:3000"
+    environment:
+      - NUXT_DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@timescaledb:5432/${POSTGRES_DB:-drain}
     env_file:
       - path: ./dashboard/.env
         required: false

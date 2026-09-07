@@ -14,9 +14,9 @@ export default defineEventHandler(async (event) => {
     query<{ week: string; avg_days: number; installs: number }>(
       `SELECT week, round(avg(active_days), 2) AS avg_days, count(*)::int AS installs
          FROM client_weekly
-        WHERE week BETWEEN $1 AND $2 AND week < date_trunc('week', CURRENT_DATE)::date
+        WHERE week BETWEEN $1 AND $2
         GROUP BY 1 ORDER BY 1`,
-      [wk.from, range.to],
+      [wk.from, wk.to],
     ),
 
     query<{ week: string; band: number; installs: number }>(
@@ -27,9 +27,9 @@ export default defineEventHandler(async (event) => {
                    ELSE 3 END AS band,
               count(*)::int AS installs
          FROM client_weekly
-        WHERE week BETWEEN $1 AND $2 AND week < date_trunc('week', CURRENT_DATE)::date
+        WHERE week BETWEEN $1 AND $2
         GROUP BY 1, 2 ORDER BY 1, 2`,
-      [wk.from, range.to],
+      [wk.from, wk.to],
     ),
 
     // Concurrent browser sessions per install, as its weekly peak. p95 shows the
@@ -39,9 +39,9 @@ export default defineEventHandler(async (event) => {
               round(avg(peak_clients), 2) AS avg,
               round(percentile_cont(0.95) WITHIN GROUP (ORDER BY peak_clients)::numeric, 2) AS p95
          FROM client_weekly
-        WHERE week BETWEEN $1 AND $2 AND week < date_trunc('week', CURRENT_DATE)::date
+        WHERE week BETWEEN $1 AND $2
         GROUP BY 1 ORDER BY 1`,
-      [wk.from, range.to],
+      [wk.from, wk.to],
     ),
   ])
 

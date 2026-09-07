@@ -54,9 +54,8 @@ export default defineEventHandler(async (event) => {
               count(*)::int AS installs
          FROM client_weekly
         WHERE week BETWEEN $1 AND $2
-          AND week < date_trunc('week', CURRENT_DATE)::date
         GROUP BY 1, 2 ORDER BY 1, 2`,
-      [wk.from, range.to],
+      [wk.from, wk.to],
     ),
   ])
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/amir20/drain/internal"
@@ -22,16 +23,42 @@ type PostgresWriter struct {
 // DSN is the connection string for the beacon database. DATABASE_URL wins when set so
 // the same binary can run migrations from a one-shot container or against a local
 // Postgres; otherwise it falls back to the in-stack service name.
-func DSN(user, pass string) string {
+//
+// The password comes from POSTGRES_PASSWORD_FILE (a Docker secret, in production) or
+// POSTGRES_PASSWORD (docker-compose.override.yml, in dev) - the same two variables the
+// Postgres image itself reads, so one value configures both ends. This image is FROM
+// scratch and has no shell, so there is no entrypoint that could expand the file into
+// the environment the way the dashboard's does - it has to be read here.
+func DSN(user, pass string) (string, error) {
 	if url, ok := os.LookupEnv("DATABASE_URL"); ok && url != "" {
-		return url
+		return url, nil
 	}
-	return fmt.Sprintf("host=timescaledb user=%s password=%s dbname=drain sslmode=disable", user, pass)
+	// A misconfigured secret must not fall through to the caller's default: that default
+	// is the historical password, so a silent fallback would connect anyway and hide the
+	// breakage until the day the password actually differs.
+	if path, ok := os.LookupEnv("POSTGRES_PASSWORD_FILE"); ok && path != "" {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return "", fmt.Errorf("reading POSTGRES_PASSWORD_FILE %s: %w", path, err)
+		}
+		// Trailing newlines are what every editor and `echo` leave behind, and Postgres
+		// would treat one as part of the password.
+		if pass = strings.TrimRight(string(b), "\r\n"); pass == "" {
+			return "", fmt.Errorf("POSTGRES_PASSWORD_FILE %s is empty", path)
+		}
+	} else if p := os.Getenv("POSTGRES_PASSWORD"); p != "" {
+		pass = p
+	}
+	return fmt.Sprintf("host=timescaledb user=%s password=%s dbname=drain sslmode=disable", user, pass), nil
 }
 
 // Connect opens the beacon database and verifies it is reachable.
 func Connect(user, pass string) (*sql.DB, error) {
-	db, err := sql.Open("postgres", DSN(user, pass))
+	dsn, err := DSN(user, pass)
+	if err != nil {
+		return nil, err
+	}
+	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("error opening database: %w", err)
 	}

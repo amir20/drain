@@ -36,6 +36,7 @@ edited one is re-applied.
 | --- | --- |
 | `001_analytics.sql` | the SQL helpers that read the beacon payload, the views and derived tables the dashboard reads, and the hourly continuous aggregate |
 | `002_refresh.sql` | `drain_refresh_analytics()`, which maintains them |
+| `003_schedule.sql` | registers that refresh on TimescaleDB's job scheduler, hourly |
 
 ## The one design rule
 
@@ -54,20 +55,30 @@ materialise that single column rather than reinstating a mirror of the payload.
 
 ## Refreshing
 
-The `view-refresh` service runs this hourly through ofelia:
-
 ```sql
 CALL drain_refresh_analytics();       -- incremental: reprocesses a trailing window
 CALL drain_refresh_analytics(true);   -- full rebuild from the continuous aggregates
 ```
 
-A full rebuild is only needed after a backfill, a change to how a snapshot column is
-derived, or the first time these migrations land on an existing database. Run it once by
-hand after deploying them, or the dashboard will only have the trailing window:
+`003_schedule.sql` runs the incremental form hourly on TimescaleDB's job scheduler, the
+same one that runs the compression and retention policies. There is no scheduler
+container: the job lives in the database, so it survives a restart and needs neither the
+Docker socket nor a copy of the password in a service label.
+
+Its runs are reported alongside every other policy:
+
+```sql
+SELECT * FROM timescaledb_information.job_stats;   -- successes, failures, last duration
+SELECT * FROM timescaledb_information.jobs;        -- schedule and config
+```
+
+A full rebuild is only needed after a backfill, a change to how a derived table is built,
+or the first time these migrations land on an existing database. Run it once by hand after
+deploying them, or the dashboard will only have the trailing window:
 
 ```sh
-docker --context beacon exec -it $(docker --context beacon ps -q -f name=data_view-refresh) \
-  psql "$DATABASE_URL" -c 'CALL drain_refresh_analytics(true)'
+docker --context beacon exec -it $(docker --context beacon ps -q -f name=data_timescaledb) \
+  sh -c 'psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-drain}" -c "CALL drain_refresh_analytics(true)"'
 ```
 
 Phase timings land in `analytics_meta`, which `/api/meta` reads back.
