@@ -6,3 +6,6 @@ __pycache__
 .ruff_cache
 .ty_cache
 .venv
+.playwright-mcp
+.claude
+node_modules
