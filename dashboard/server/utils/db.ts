@@ -18,8 +18,18 @@ export function db(): pg.Pool {
       connectionString: url,
       max: 10,
       idleTimeoutMillis: 30_000,
-      // Nothing here should take seconds. Failing loudly beats a hung dashboard.
-      statement_timeout: 20_000,
+      // Failing loudly still beats a hung dashboard, but 20s was below what the widest
+      // ranges legitimately cost. A year of data means grouping 1.18M client_weekly rows
+      // by a dimension parsed out of `metadata`, and that JSONB parse is ~13.4s of a
+      // 14.8s query - the same shape over a typed column is 1.4s. Five of those run
+      // concurrently per page, so the Environment and Features pages were erroring at
+      // the timeout rather than being slow.
+      //
+      // The real fix is to materialise those dimensions so the parse happens once, on
+      // write, instead of on every read; this only stops the page failing while it is
+      // still parsing on read. With the response cache in front, one load per hour pays
+      // the cost and the rest are served in ~1ms.
+      statement_timeout: 60_000,
     })
   }
   return pool
