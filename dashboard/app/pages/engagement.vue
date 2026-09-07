@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { baseOptions, barSeries, fmtInt, lineSeries } from '~/composables/useChartOptions'
+import { baseOptions, barSeries, fmtInt, lineSeries, ordinalRamp } from '~/composables/useChartOptions'
 
 definePageMeta({ middleware: 'auth' })
 useHead({ title: 'Engagement · Dozzle analytics' })
@@ -47,12 +47,15 @@ const depthOption = computed(() => {
   return {
     ...baseOptions(t),
     xAxis: { ...baseOptions(t).xAxis, type: 'category', data: weeks },
+    // How many days a week an install reports is an ordered scale, not four unrelated
+    // categories, so it takes the one-hue ordinal ramp.
     series: DEPTH.map((label, band) => {
+      const ramp = ordinalRamp(t, DEPTH.length)
       const values = weeks.map(() => 0)
       for (const r of rows) if (r.band === band) values[idx.get(r.week)!] = r.installs
-      return barSeries(label, t.series[band]!, values, {
+      return barSeries(label, ramp[band]!, values, {
         stack: 'depth',
-        itemStyle: { color: t.series[band], borderColor: t.surface, borderWidth: 1 },
+        itemStyle: { color: ramp[band], borderColor: t.surface, borderWidth: 1 },
       })
     }),
   }

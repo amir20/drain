@@ -4,6 +4,8 @@
  */
 export interface ChartTheme {
   series: string[]
+  ordinal: string[]
+  ordinalNone: string
   sequential: string[]
   text: string
   secondary: string
@@ -59,6 +61,17 @@ function snapshotTheme(): ChartTheme {
       read('--series-7', '#4a3aa7'),
       read('--series-8', '#e34948'),
     ],
+    // Ordered bands - tenure, engagement depth, deployment size - take a one-hue ramp so
+    // the order is visible in the colour. Categorical hues would spend the identity
+    // channel re-encoding a sequence the labels already carry.
+    ordinal: [
+      read('--ord-1', '#86b6ef'),
+      read('--ord-2', '#5598e7'),
+      read('--ord-3', '#2a78d6'),
+      read('--ord-4', '#1c5cab'),
+      read('--ord-5', '#104281'),
+    ],
+    ordinalNone: read('--ord-none', '#b6b5ae'),
     sequential: [
       read('--seq-100', '#cde2fb'),
       read('--seq-200', '#9ec5f4'),

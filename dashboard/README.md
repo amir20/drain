@@ -17,8 +17,8 @@ reads a derived table maintained by `drain_refresh_analytics()` (see `../migrati
 | --- | --- | --- |
 | `active_counts_daily` | one row per day | DAU / WAU / MAU, new, churned, resurrected |
 | `active_counts_hourly` | one row per hour | the 24-hour view |
-| `client_snapshot_daily` | one row per install per day, typed columns | features, versions, environment, up to 90 days |
-| `client_snapshot_weekly` | the same rolled up to ISO weeks | the same panels over 90 days to a year |
+| `client_snapshot_daily` | one row per install per day, typed columns | features, versions, environment, up to a month |
+| `client_snapshot_weekly` | the same rolled up to ISO weeks | the same panels from a month to a year |
 | `client_lifecycle` | one row per install ever seen | activation, tenure, the launch-only funnel |
 | `cohort_retention_weekly` | cohort week x week index | the whole retention page |
 | `weekly_lifecycle` | one row per week | new / retained / resurrected / churned |
@@ -32,8 +32,10 @@ are computed once per refresh rather than per page load.
 range lives in the URL, so any view is linkable.
 
 Granularity is derived from the window rather than chosen: up to 2 days is an hour axis,
-up to 92 days a day axis, and anything longer a week axis reading the weekly snapshot.
-That is what keeps a one-year range in the same latency class as a 30-day one.
+up to 31 days a day axis, and anything longer a week axis reading the weekly snapshot. A
+`bucket` query parameter can coarsen that but never refine it. Weekly buckets past a month
+are both the better read (13 points for a quarter, not 90) and ~7x less data, which is
+what keeps a one-year range in the same latency class as a 30-day one.
 
 ## Access
 
@@ -48,5 +50,5 @@ callback URL `https://<host>/auth/github`.
 | `NUXT_DATABASE_URL` | Postgres connection string |
 | `NUXT_OAUTH_GITHUB_CLIENT_ID` | OAuth app client id |
 | `NUXT_OAUTH_GITHUB_CLIENT_SECRET` | OAuth app client secret |
-| `NUXT_GITHUB_ALLOWED_USERS` | comma-separated GitHub logins |
+| `NUXT_GITHUB_ALLOWED_USERS` | comma-separated GitHub logins, re-checked on every request |
 | `NUXT_SESSION_PASSWORD` | 32+ random chars, `openssl rand -base64 32` |

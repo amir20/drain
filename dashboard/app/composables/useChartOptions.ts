@@ -74,6 +74,25 @@ export function baseOptions(theme: ChartTheme, opts: { legend?: boolean; percent
   }
 }
 
+/**
+ * `n` steps sampled evenly across the ordinal ramp, so a four-band scale still spans
+ * light to dark instead of crowding into one end.
+ *
+ * The ramp tops out at FIVE steps and callers must not ask for more: below roughly a 0.06
+ * lightness gap adjacent steps stop reading as distinct, and 250 -> 650 in 100-unit
+ * increments is all that fits between "barely darker than the surface" and black. Past
+ * five the index clamps and steps repeat - visibly wrong rather than silently undefined,
+ * but still wrong. Fold the extra bands into an "other" instead.
+ */
+export function ordinalRamp(theme: ChartTheme, n: number): string[] {
+  const ramp = theme.ordinal
+  const last = ramp.length - 1
+  if (n <= 1) return [ramp[last]!]
+  return Array.from({ length: n }, (_, i) =>
+    ramp[Math.min(last, Math.round((i * last) / (n - 1)))]!,
+  )
+}
+
 /** 2px lines, >=8px hover markers, no dot on every point. */
 export function lineSeries(
   name: string,

@@ -34,6 +34,17 @@
   --seq-600: #184f95;
   --seq-700: #0d366b;
 
+  /* Ordinal ramp: one hue, monotone lightness, for ordered bands (tenure, engagement
+     depth, deployment size). Validated with the dataviz --ordinal checks against this
+     surface: monotone L, adjacent dL >= 0.06, light end 2.06:1. */
+  --ord-1: #86b6ef;
+  --ord-2: #5598e7;
+  --ord-3: #2a78d6;
+  --ord-4: #1c5cab;
+  --ord-5: #104281;
+  /* Reserved for an "unknown" band, which has no place on an ordered scale. */
+  --ord-none: #b6b5ae;
+
   --good:     #0ca30c;
   --critical: #d03b3b;
   --delta-up: #006300;
@@ -73,6 +84,13 @@
     --seq-600: #5598e7;
     --seq-700: #86b6ef;
 
+    --ord-1: #184f95;
+    --ord-2: #256abf;
+    --ord-3: #3987e5;
+    --ord-4: #6da7ec;
+    --ord-5: #9ec5f4;
+    --ord-none: #55554f;
+
     --delta-up: #0ca30c;
   }
 }
@@ -106,6 +124,13 @@
   --seq-500: #3987e5;
   --seq-600: #5598e7;
   --seq-700: #86b6ef;
+
+  --ord-1: #184f95;
+  --ord-2: #256abf;
+  --ord-3: #3987e5;
+  --ord-4: #6da7ec;
+  --ord-5: #9ec5f4;
+  --ord-none: #55554f;
 
   --delta-up: #0ca30c;
 }

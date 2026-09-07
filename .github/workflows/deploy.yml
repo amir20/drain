@@ -73,11 +73,32 @@ jobs:
           ssh_cert: ${{ secrets.SSH_CERT }}
           ssh_key: ${{ secrets.SSH_KEY }}
       # Swarm config names are capped at 64 characters, so use a short SHA.
+      # DASHBOARD_ALLOWED_USERS, not GITHUB_ALLOWED_USERS: Actions reserves the GITHUB_
+      # prefix, so a variable by that name cannot be created and `vars.GITHUB_*` always
+      # expands to empty - which compose's `:-` default would silently paper over.
       - run: |
           export CONFIG_VERSION="${GITHUB_SHA::12}"
           docker --context beacon stack deploy -c docker-compose.yml -c docker-compose.prod.yml data
         env:
-          GITHUB_ALLOWED_USERS: ${{ vars.GITHUB_ALLOWED_USERS }}
+          GITHUB_ALLOWED_USERS: ${{ vars.DASHBOARD_ALLOWED_USERS }}
           OAUTH_GITHUB_CLIENT_ID: ${{ secrets.OAUTH_GITHUB_CLIENT_ID }}
           OAUTH_GITHUB_CLIENT_SECRET: ${{ secrets.OAUTH_GITHUB_CLIENT_SECRET }}
           SESSION_PASSWORD: ${{ secrets.SESSION_PASSWORD }}
+      # Swarm ignores depends_on, so `migrate` starts alongside the dashboard rather than
+      # before it. Waiting on the job here is what turns a failed migration into a failed
+      # deploy instead of a dashboard quietly serving 500s.
+      - name: Wait for migrations
+        run: |
+          for i in $(seq 1 60); do
+            state=$(docker --context beacon service ps data_migrate \
+              --filter desired-state=shutdown --format '{{.CurrentState}}' | head -1)
+            case "$state" in
+              Complete*) echo "migrations applied"; exit 0 ;;
+              Failed*|Rejected*)
+                docker --context beacon service logs --tail 50 data_migrate
+                echo "migration failed"; exit 1 ;;
+            esac
+            sleep 5
+          done
+          docker --context beacon service logs --tail 50 data_migrate
+          echo "timed out waiting for migrations"; exit 1

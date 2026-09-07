@@ -18,6 +18,17 @@ export interface Range {
   to: string
   /** start of the week containing `from`, for the weekly tables */
   weekFrom: string
+  /**
+   * `from` for reads at calendar-day resolution.
+   *
+   * Calendar-day tables cannot express "the trailing 24 hours". On the 1-day range
+   * `from = to = today`, so a day-resolution read means "installs whose last beacon
+   * arrived since UTC midnight" - which just after midnight is almost nobody, and would
+   * quietly empty the Features and Environment pages. Day-resolution reads therefore span
+   * at least two calendar days when the range ends today: over-covering by up to a day
+   * rather than under-covering to near zero.
+   */
+  dayFrom: string
   days: number
   bucket: Bucket
   /** the equivalent window immediately before `from`, for period-over-period deltas */
@@ -117,25 +128,39 @@ export function resolveRange(event: H3Event): Range {
   }
 
   const days = Math.round((to.getTime() - from.getTime()) / DAY_MS) + 1
+  // The override may only coarsen. Letting it go finer would route a multi-year range at
+  // `bucket=day` onto the daily snapshot and turn one request into several full scans;
+  // there is no panel that wants that, and the derived granularity is already the right
+  // one for the window.
+  const auto = bucketFor(days)
+  const rank: Record<Bucket, number> = { hour: 0, day: 1, week: 2 }
   const forced = q.bucket ? String(q.bucket) : undefined
+  if (forced && !(forced in rank)) {
+    throw createError({ statusCode: 400, statusMessage: 'bucket must be hour, day or week' })
+  }
   const bucket: Bucket =
-    forced === 'hour' || forced === 'day' || forced === 'week' ? forced : bucketFor(days)
+    forced && rank[forced as Bucket] >= rank[auto] ? (forced as Bucket) : auto
 
   const now = new Date()
   const hourTo = to.getTime() === today.getTime() ? now : new Date(to.getTime() + DAY_MS)
   const hourFrom = new Date(hourTo.getTime() - days * DAY_MS)
 
+  const endsToday = to.getTime() >= today.getTime()
+  const dayFrom =
+    endsToday && days < 2 ? iso(new Date(to.getTime() - DAY_MS)) : iso(from)
+
   return {
     from: iso(from),
     to: iso(to),
     weekFrom: iso(startOfWeek(from)),
+    dayFrom,
     days,
     bucket,
     prevFrom: iso(new Date(from.getTime() - days * DAY_MS)),
     prevTo: iso(new Date(from.getTime() - DAY_MS)),
     hourFrom: hourFrom.toISOString(),
     hourTo: hourTo.toISOString(),
-    endsToday: to.getTime() >= today.getTime(),
+    endsToday,
     label,
   }
 }
@@ -171,7 +196,7 @@ export function weeklyWindow(range: Range): { from: string; widened: boolean } {
 export function snapshot(range: Range): { table: string; timeCol: string; from: string } {
   return range.bucket === 'week'
     ? { table: 'client_snapshot_weekly', timeCol: 'week', from: range.weekFrom }
-    : { table: 'client_snapshot_daily', timeCol: 'day', from: range.from }
+    : { table: 'client_snapshot_daily', timeCol: 'day', from: range.dayFrom }
 }
 
 /**
@@ -186,7 +211,7 @@ export function latestState(range: Range): { sql: string; params: [string, strin
     return {
       sql: `SELECT * FROM client_latest
              WHERE last_event_day >= $1::date AND last_event_day <= $2::date`,
-      params: [range.from, range.to],
+      params: [range.dayFrom, range.to],
     }
   }
   // Hash-aggregate to each install's last bucket, then join the row back. Measured at

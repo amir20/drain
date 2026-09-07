@@ -55,7 +55,7 @@ The deploy needs these set in the repository settings:
 
 | | |
 | --- | --- |
-| `vars.GITHUB_ALLOWED_USERS` | comma-separated GitHub logins allowed into the dashboard |
+| `vars.DASHBOARD_ALLOWED_USERS` | comma-separated GitHub logins allowed into the dashboard (Actions reserves the `GITHUB_` prefix, so it cannot be named after the env var it feeds) |
 | `secrets.OAUTH_GITHUB_CLIENT_ID` / `secrets.OAUTH_GITHUB_CLIENT_SECRET` | the dashboard's GitHub OAuth app |
 | `secrets.SESSION_PASSWORD` | 32+ random chars for the dashboard's session cookie |
 | `secrets.DOCKER_USERNAME` / `secrets.DOCKER_PASSWORD` | Docker Hub |

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { baseOptions, barSeries, fmtInt, fmtPct, lineSeries } from '~/composables/useChartOptions'
+import { baseOptions, barSeries, fmtInt, fmtPct, lineSeries, ordinalRamp } from '~/composables/useChartOptions'
 
 definePageMeta({ middleware: 'auth' })
 useHead({ title: 'Retention · Dozzle analytics' })
@@ -77,13 +77,17 @@ const tenureOption = computed(() => {
   if (!rows.length) return null
   const weeks = [...new Set(rows.map((r: any) => r.week))] as string[]
   const idx = new Map(weeks.map((w, i) => [w, i]))
+  // Tenure is an ordered scale, so it takes the one-hue ordinal ramp: older installs sit
+  // darker, and the reader sees the order in the colour rather than having to decode a
+  // legend of unrelated hues.
+  const ramp = ordinalRamp(t, TENURE.length)
   const series = TENURE.map((label, band) => {
     const values: (number | null)[] = weeks.map(() => 0)
     for (const r of rows) if (r.band === band) values[idx.get(r.week)!] = r.installs
-    return barSeries(label, t.series[band]!, values, {
+    return barSeries(label, ramp[band]!, values, {
       stack: 'tenure',
       // 2px surface gap keeps adjacent stacked segments separable.
-      itemStyle: { color: t.series[band], borderColor: t.surface, borderWidth: 1 },
+      itemStyle: { color: ramp[band], borderColor: t.surface, borderWidth: 1 },
     })
   })
   return {
@@ -93,14 +97,21 @@ const tenureOption = computed(() => {
   }
 })
 
+const STEPS = ['--seq-100', '--seq-200', '--seq-300', '--seq-400', '--seq-500', '--seq-600', '--seq-700']
+
 function heat(pct: number | null) {
   if (pct === null) return { background: 'transparent', color: 'var(--text-muted)' }
-  // Sequential single hue, light -> dark with magnitude.
-  const steps = ['--seq-100', '--seq-200', '--seq-300', '--seq-400', '--seq-500', '--seq-600', '--seq-700']
-  const i = Math.min(steps.length - 1, Math.floor((pct / 100) ** 0.6 * steps.length))
+  // Sequential single hue, deepening with magnitude.
+  const i = Math.min(STEPS.length - 1, Math.floor((pct / 100) ** 0.6 * STEPS.length))
+  // The ramp's polarity flips between modes: --seq-700 is the darkest blue on the light
+  // surface and the lightest on the dark one. A fixed "white above step 4" would put
+  // white text on the palest cells in dark mode, so the high end takes the ink that
+  // contrasts with the ramp's high end in the mode actually being rendered.
+  const deep = i >= 4
+  const onDeep = theme.value.dark ? 'var(--text-primary)' : '#fff'
   return {
-    background: `var(${steps[i]})`,
-    color: i >= 4 ? '#fff' : 'var(--text-primary)',
+    background: `var(${STEPS[i]})`,
+    color: deep ? onDeep : 'var(--text-primary)',
   }
 }
 </script>

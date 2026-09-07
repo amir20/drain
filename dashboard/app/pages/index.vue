@@ -47,12 +47,13 @@ const stickinessOption = computed(() => {
   if (!rows.length) return null
   return {
     ...baseOptions(t, { legend: false, percent: true }),
+    // No area fill: the ratio sits around 75-80% and never approaches zero, so filling to
+    // the baseline paints a block of colour that encodes nothing.
     series: [
       lineSeries(
         'WAU / MAU',
         t.series[0]!,
         rows.map((r: any) => [r.day, Number(((100 * r.wau) / r.mau).toFixed(1))]),
-        { areaStyle: { color: t.series[0], opacity: 0.12 } },
       ),
     ],
     yAxis: { ...baseOptions(t, { percent: true }).yAxis, max: undefined },

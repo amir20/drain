@@ -46,12 +46,18 @@ $$ SELECT CASE
      ELSE 'Other' END $$;
 
 -- Ordinal so the UI can sort buckets without shipping label prefixes like '3 - 6 to 20'.
+--
+-- Five ordered bands plus an unknown. Five is a ceiling, not a preference: an ordered
+-- scale has to be drawn with a one-hue ramp for the order to be visible, and a ramp
+-- needs roughly a 0.06 lightness gap between steps to stay separable - which leaves five
+-- steps between "barely darker than the surface" and black. A sixth band would be a
+-- split the reader cannot see, so 21-50 and 51-200 are one band.
 CREATE OR REPLACE FUNCTION drain_size_bucket(c int) RETURNS smallint
   LANGUAGE sql IMMUTABLE PARALLEL SAFE AS
 $$ SELECT CASE
-     WHEN c IS NULL THEN 6 WHEN c = 0 THEN 0 WHEN c <= 5 THEN 1
-     WHEN c <= 20 THEN 2 WHEN c <= 50 THEN 3 WHEN c <= 200 THEN 4
-     ELSE 5 END::smallint $$;
+     WHEN c IS NULL THEN 5 WHEN c = 0 THEN 0 WHEN c <= 5 THEN 1
+     WHEN c <= 20 THEN 2 WHEN c <= 200 THEN 3
+     ELSE 4 END::smallint $$;
 
 -- ---------------------------------------------------------------------------
 -- Refresh bookkeeping
@@ -293,16 +299,36 @@ CREATE TABLE IF NOT EXISTS weekly_lifecycle (
 
 -- ---------------------------------------------------------------------------
 -- Compression. Snapshot chunks older than 90 days are never rewritten by an
--- incremental refresh, so they can compress. A --full rebuild TRUNCATEs, which works
--- on compressed hypertables.
+-- incremental refresh, so they can compress. A full rebuild TRUNCATEs, which works on
+-- compressed hypertables.
+--
+-- No segmentby. The obvious choice, compress_segmentby = 'client_id', makes this table
+-- BIGGER: there is at most one row per install per day and the chunk interval is 7 days,
+-- so segmenting by client_id yields one compressed batch per install holding <= 7 values,
+-- which is far too short to compress and carries per-batch overhead instead. Measured on
+-- one real chunk: 504 kB -> 1128 kB segmented by client_id (TimescaleDB itself emits
+-- "poor compression ratio detected"), against 560 kB -> 112 kB with no segmentby and
+-- ordering by (day, client_id). Segmenting would only pay with a chunk interval long
+-- enough to give each install a few hundred rows per batch.
+--
+-- Run unguarded: ALTER ... SET is idempotent, and gating it on compression_settings
+-- already existing would pin a database to whatever settings it was first created with.
+-- Changing the settings does NOT rewrite existing chunks - to pick up a change on a
+-- database that already has compressed chunks, recompress them:
+--   SELECT compress_chunk(c, recompress => true)
+--     FROM show_chunks('client_snapshot_daily', older_than => INTERVAL '90 days') c;
 -- ---------------------------------------------------------------------------
+
+ALTER TABLE client_snapshot_daily
+  SET (timescaledb.compress,
+       timescaledb.compress_segmentby = '',
+       timescaledb.compress_orderby = 'day, client_id');
 
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM timescaledb_information.compression_settings
-                 WHERE hypertable_name = 'client_snapshot_daily') THEN
-    ALTER TABLE client_snapshot_daily
-      SET (timescaledb.compress, timescaledb.compress_segmentby = 'client_id');
+  IF NOT EXISTS (SELECT 1 FROM timescaledb_information.jobs
+                 WHERE proc_name = 'policy_compression'
+                   AND hypertable_name = 'client_snapshot_daily') THEN
     PERFORM add_compression_policy('client_snapshot_daily', INTERVAL '90 days');
   END IF;
 END $$;

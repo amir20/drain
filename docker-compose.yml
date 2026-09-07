@@ -29,6 +29,10 @@ services:
     depends_on:
       - timescaledb
     deploy:
+      # A job, not a service: it runs to completion once per deploy. Swarm ignores
+      # depends_on entirely, so the deploy workflow waits on this job rather than relying
+      # on start order; the retry budget covers Postgres still coming up.
+      mode: replicated-job
       restart_policy:
         condition: on-failure
         delay: 10s

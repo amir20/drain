@@ -7,7 +7,7 @@ useHead({ title: 'Features · Dozzle analytics' })
 const { data, pending } = useRangedFetch<any>('/api/features')
 const { theme, version } = useChartTheme()
 
-const SIZES = ['None', '1–5', '6–20', '21–50', '51–200', 'Over 200', 'Unknown']
+const SIZES = ['None', '1–5', '6–20', '21–200', 'Over 200', 'Unknown']
 
 const pct = (n: number, total: number) => (total ? Number(((100 * n) / total).toFixed(2)) : 0)
 
@@ -87,8 +87,16 @@ const overTimeOption = computed(() => {
 const histogramOption = computed(() => {
   void version.value
   const t = theme.value
-  const rows = data.value?.histogram ?? []
-  if (!rows.length) return null
+  const raw = data.value?.histogram ?? []
+  if (!raw.length) return null
+  // The query only returns counts that occur. Fill the gaps so a missing value reads as a
+  // zero-height bar rather than silently collapsing the axis (0,1,2,3,5 with no 4).
+  const max = data.value?.maxFeatureCount ?? 6
+  const byCount = new Map(raw.map((r: any) => [r.features, r.installs]))
+  const rows = Array.from({ length: max + 1 }, (_, i) => ({
+    features: i,
+    installs: byCount.get(i) ?? 0,
+  }))
   const total = rows.reduce((s: number, r: any) => s + r.installs, 0)
   return {
     ...baseOptions(t, { legend: false }),
@@ -167,7 +175,7 @@ const sizeRows = computed(() => {
             <tr>
               <th>Deployment size</th>
               <th>Installs</th>
-              <th v-for="f in data?.features ?? []" :key="f.key">{{ f.label }}</th>
+              <th v-for="f in data?.features ?? []" :key="f.key">{{ f.short }}</th>
             </tr>
           </thead>
           <tbody>

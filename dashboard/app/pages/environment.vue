@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { baseOptions, barSeries, fmtInt } from '~/composables/useChartOptions'
+import { baseOptions, barSeries, fmtInt, ordinalRamp } from '~/composables/useChartOptions'
 
 definePageMeta({ middleware: 'auth' })
 useHead({ title: 'Environment · Dozzle analytics' })
@@ -7,7 +7,19 @@ useHead({ title: 'Environment · Dozzle analytics' })
 const { data, pending } = useRangedFetch<any>('/api/environment')
 const { theme, version } = useChartTheme()
 
-const SIZES = ['None', '1–5', '6–20', '21–50', '51–200', 'Over 200', 'Unknown']
+const SIZES = ['None', '1–5', '6–20', '21–200', 'Over 200', 'Unknown']
+
+/** Numeric compare of 'v8.9' / 'v8.10' style minors; unparseable versions sort first. */
+function compareVersion(a: string, b: string) {
+  const parts = (v: string) => (v.match(/\d+/g) ?? []).map(Number)
+  const pa = parts(a)
+  const pb = parts(b)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? -1) - (pb[i] ?? -1)
+    if (d !== 0) return d
+  }
+  return a.localeCompare(b)
+}
 
 /**
  * Distributions are horizontal bars in a single hue, not pies: the category axis carries
@@ -20,6 +32,10 @@ function distributionOption(rows: { key: string; installs: number }[] | undefine
   if (!rows?.length) return null
   const total = rows.reduce((s, r) => s + r.installs, 0)
   const sorted = [...rows].sort((a, b) => a.installs - b.installs)
+  // Plotted as share, not count: a composition is read as "what fraction", and mixing a
+  // count axis with percentage labels puts two units on one mark. The absolute number is
+  // in the tooltip.
+  const share = (n: number) => (total ? Number(((100 * n) / total).toFixed(1)) : 0)
   return {
     ...baseOptions(t, { legend: false }),
     grid: { left: 8, right: 72, top: 8, bottom: 4, containLabel: true },
@@ -27,11 +43,7 @@ function distributionOption(rows: { key: string; installs: number }[] | undefine
       type: 'value',
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: {
-        color: t.muted,
-        fontSize: 11,
-        formatter: (v: number) => (v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)),
-      },
+      axisLabel: { color: t.muted, fontSize: 11, formatter: (v: number) => `${v}%` },
       splitLine: { lineStyle: { color: t.grid } },
     },
     yAxis: {
@@ -44,19 +56,21 @@ function distributionOption(rows: { key: string; installs: number }[] | undefine
     tooltip: {
       ...baseOptions(t).tooltip,
       formatter: (p: any) =>
-        `<b>${p[0].name}</b><br>${fmtInt(p[0].value)} installs (${((100 * p[0].value) / total).toFixed(1)}%)`,
+        `<b>${p[0].name}</b><br>${p[0].value}% of active installs<br><span style="opacity:.7">${fmtInt(sorted[p[0].dataIndex]!.installs)} installs</span>`,
     },
     series: [
       {
         type: 'bar',
-        data: sorted.map((r) => r.installs),
+        data: sorted.map((r) => share(r.installs)),
+        // Nominal categories: the axis label carries identity, so colour has no job here
+        // and every bar takes the same slot-1 hue.
         itemStyle: { color: t.series[0], borderRadius: [0, 4, 4, 0] },
         label: {
           show: true,
           position: 'right',
           color: t.secondary,
           fontSize: 11.5,
-          formatter: (p: any) => `${((100 * p.value) / total).toFixed(1)}%`,
+          formatter: (p: any) => `${p.value}%`,
         },
       },
     ],
@@ -71,6 +85,11 @@ function shareOption(
   rows: { bucket: string; key: string | number; installs: number }[] | undefined,
   labelOf: (k: any) => string,
   order?: string[],
+  /**
+   * Colours per series. Omitted means the categorical slots (identity); pass a ramp for
+   * an ordered scale so the order reads out of the colour.
+   */
+  palette?: string[],
 ) {
   void version.value
   const t = theme.value
@@ -81,14 +100,15 @@ function shareOption(
   for (const r of rows) totals[idx.get(r.bucket)!] += r.installs
 
   const keys = order ?? [...new Set(rows.map((r) => labelOf(r.key)))].sort()
-  const series = keys.slice(0, 8).map((key, i) => {
+  const colours = palette ?? t.series
+  const series = keys.slice(0, colours.length).map((key, i) => {
     const values = buckets.map(() => 0)
     for (const r of rows) if (labelOf(r.key) === key) values[idx.get(r.bucket)!] += r.installs
     return barSeries(
       key,
-      t.series[i]!,
+      colours[i]!,
       values.map((v, j) => (totals[j] ? Number(((100 * v) / totals[j]!).toFixed(2)) : 0)),
-      { stack: 'share', itemStyle: { color: t.series[i], borderColor: t.surface, borderWidth: 1 } },
+      { stack: 'share', itemStyle: { color: colours[i], borderColor: t.surface, borderWidth: 1 } },
     )
   })
 
@@ -100,17 +120,35 @@ function shareOption(
 }
 
 const authOption = computed(() => shareOption(data.value?.auth, (k) => String(k)))
+// Deployment size is ordered, so the five real bands take the ordinal ramp and Unknown -
+// which has no position on that scale - takes the reserved neutral.
 const sizeOption = computed(() =>
-  shareOption(data.value?.sizes, (k) => SIZES[Number(k)] ?? 'Unknown', SIZES),
+  shareOption(data.value?.sizes, (k) => SIZES[Number(k)] ?? 'Unknown', SIZES, [
+    ...ordinalRamp(theme.value, SIZES.length - 1),
+    theme.value.ordinalNone,
+  ]),
 )
 
-/** Version adoption. Everything outside the top seven minors is already folded to Other. */
+/** Version adoption. Everything outside the top minors is already folded to Other. */
 const versionOption = computed(() => {
   void version.value
   const t = theme.value
   const rows = data.value?.versions ?? []
   if (!rows.length) return null
-  const keys = [...(data.value?.versionMix ?? []).map((v: any) => v.version), 'Other']
+  // Releases are ordered, so oldest-to-newest gets the ordinal ramp. That ordering has to
+  // be numeric: a plain string sort puts v8.10 and v8.12 before v8.9 and paints the ramp
+  // backwards over exactly the hand-off the chart exists to show.
+  //
+  // 'unknown' and 'Other' are not points on that scale and take the reserved neutral.
+  const mix = (data.value?.versionMix ?? []).map((v: any) => v.version)
+  const named = mix.filter((v: string) => v !== 'unknown').sort(compareVersion)
+  const rest = mix.filter((v: string) => v === 'unknown')
+  const keys = [...named, ...rest, 'Other']
+  const colours = [
+    ...ordinalRamp(t, named.length),
+    ...rest.map(() => t.ordinalNone),
+    t.ordinalNone,
+  ]
   const buckets = rows.map((r: any) => r.bucket)
   const totals = rows.map((r: any) =>
     Object.values(r.counts as Record<string, number>).reduce((s, n) => s + n, 0),
@@ -121,11 +159,11 @@ const versionOption = computed(() => {
     series: keys.map((key, i) =>
       barSeries(
         key,
-        t.series[i]!,
+        colours[i]!,
         rows.map((r: any, j: number) =>
           totals[j] ? Number(((100 * (r.counts[key] ?? 0)) / totals[j]).toFixed(2)) : 0,
         ),
-        { stack: 'ver', itemStyle: { color: t.series[i], borderColor: t.surface, borderWidth: 1 } },
+        { stack: 'ver', itemStyle: { color: colours[i], borderColor: t.surface, borderWidth: 1 } },
       ),
     ),
   }
@@ -172,7 +210,10 @@ const versionOption = computed(() => {
     <div class="grid" style="margin-top: 16px">
       <ChartCard
         title="Version adoption"
-        hint="Share of active installs on each of the seven most common minor versions — patch releases are rolled up, since a year holds hundreds. How fast the old bands shrink is your upgrade velocity."
+        hint="Share of active installs on each minor version, for the five that reached the
+              largest share at any point in this range — patch releases are rolled up, since a
+              year holds hundreds. How fast the old bands hand over to the new ones is your
+              upgrade velocity."
         :option="versionOption"
         :loading="pending"
         :height="330"

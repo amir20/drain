@@ -39,10 +39,14 @@ export default defineEventHandler(async (event) => {
         [range.to],
       ),
 
+      // Anchored the same way as `current`, then shifted back one whole period. Reading
+      // `prevTo` directly would put the two anchors days-1 apart instead of days: on the
+      // 24-hour range both land on yesterday and every delta reads exactly 0%.
       query<{ dau: number; wau: number; mau: number }>(
         `SELECT dau, wau, mau FROM active_counts_daily
-          WHERE day <= $1::date ORDER BY day DESC LIMIT 1`,
-        [range.prevTo],
+          WHERE day <= LEAST($1::date, CURRENT_DATE - 1) - $2::int
+          ORDER BY day DESC LIMIT 1`,
+        [range.to, range.days],
       ),
 
       // Clamped to the last complete day at both ends: today's counts are still filling,

@@ -9,15 +9,20 @@
  * always report zero/false, and mode/subCommand are effectively always empty. They are
  * left off rather than drawn as flat zero lines.
  */
+// `short` is for the by-deployment-size table, where nine full-width headers overflow the
+// card and clip the last column.
 export const FEATURES = [
-  { key: 'has_actions', label: 'Container actions' },
-  { key: 'has_auth', label: 'Authentication' },
-  { key: 'has_hostname', label: 'Custom hostname' },
-  { key: 'has_custom_address', label: 'Custom address' },
-  { key: 'has_custom_base', label: 'Custom base path' },
-  { key: 'is_swarm', label: 'Swarm mode' },
-  { key: 'multi_client', label: 'Multiple browsers' },
+  { key: 'has_actions', label: 'Container actions', short: 'Actions' },
+  { key: 'has_auth', label: 'Authentication', short: 'Auth' },
+  { key: 'has_hostname', label: 'Custom hostname', short: 'Hostname' },
+  { key: 'has_custom_address', label: 'Custom address', short: 'Address' },
+  { key: 'has_custom_base', label: 'Custom base path', short: 'Base path' },
+  { key: 'is_swarm', label: 'Swarm mode', short: 'Swarm' },
+  { key: 'multi_client', label: 'Multiple browsers', short: 'Multi-browser' },
 ] as const
+
+/** The six configurable features an install can score on (multi-browser is not a setting). */
+export const MAX_FEATURE_COUNT = 6
 
 export default defineEventHandler(async (event) => {
   const range = resolveRange(event)
@@ -64,6 +69,7 @@ export default defineEventHandler(async (event) => {
   return {
     range,
     features: FEATURES,
+    maxFeatureCount: MAX_FEATURE_COUNT,
     current: current[0] ?? { installs: 0 },
     overTime,
     histogram,

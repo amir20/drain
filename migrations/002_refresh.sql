@@ -16,7 +16,8 @@ LANGUAGE plpgsql AS $proc$
 DECLARE
   v_started   timestamptz := clock_timestamp();
   v_phase     timestamptz;
-  v_from      date;
+  v_from       date;
+  v_start_from date;
   v_week_from date;
   v_to        date;
   v_hour_from timestamptz;
@@ -25,10 +26,18 @@ BEGIN
   -- beacons and the continuous aggregate's own end_offset.
   IF p_full THEN
     v_from := COALESCE((SELECT min(day)::date FROM daily_client_events), CURRENT_DATE);
+    -- Floored by its own history, not the events aggregate's. The two are independent
+    -- aggregates over disjoint slices of `beacon` ('start' vs 'events'), and 'start'
+    -- comes from ~4x more installs, so its history can begin earlier. Reusing v_from
+    -- here would drop every launch-only install whose start predates the first events
+    -- beacon - exactly the population the activation funnel is about.
+    v_start_from := COALESCE((SELECT min(day)::date FROM daily_client_starts), CURRENT_DATE);
   ELSE
     v_from := COALESCE((SELECT value::date FROM analytics_meta WHERE key = 'snapshot_day'),
                        (SELECT min(day)::date FROM daily_client_events),
                        CURRENT_DATE) - 3;
+    -- Incrementally both aggregates are current, so the same trailing window covers both.
+    v_start_from := v_from;
   END IF;
   v_to        := CURRENT_DATE;
   v_week_from := date_trunc('week', v_from)::date;
@@ -118,7 +127,7 @@ BEGIN
   INSERT INTO client_lifecycle (client_id, first_start_day, last_start_day, ever_active)
   SELECT client_id, min(day)::date, max(day)::date, false
   FROM daily_client_starts
-  WHERE client_id <> '' AND day >= v_from
+  WHERE client_id <> '' AND day >= v_start_from
   GROUP BY client_id
   ON CONFLICT (client_id) DO UPDATE
     SET first_start_day = LEAST(COALESCE(client_lifecycle.first_start_day, EXCLUDED.first_start_day),
@@ -438,8 +447,17 @@ BEGIN
   --------------------------------------------------------------------------
   v_phase := clock_timestamp();
 
-  v_hour_from := CASE WHEN p_full THEN '-infinity'::timestamptz
-                      ELSE date_trunc('hour', now()) - INTERVAL '3 days' END;
+  -- A full run must NOT delete from -infinity here. This is the one phase whose source
+  -- carries a retention policy: hourly_client_events keeps 15 days, while this table is
+  -- the permanent record rolled up from it. Deleting everything and reinserting from a
+  -- 15-day source would silently destroy every older hour, with nothing left to rebuild
+  -- it from. So a full run rewrites exactly the window the aggregate can still supply and
+  -- leaves the accumulated history alone.
+  v_hour_from := CASE
+                   WHEN p_full THEN COALESCE((SELECT min(hour) FROM hourly_client_events),
+                                             date_trunc('hour', now()))
+                   ELSE date_trunc('hour', now()) - INTERVAL '3 days'
+                 END;
 
   DELETE FROM active_counts_hourly WHERE hour >= v_hour_from;
 
