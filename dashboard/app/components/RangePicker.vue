@@ -43,7 +43,10 @@ function apply() {
 
 <style scoped>
 .range { position: relative; }
-.presets { display: flex; gap: 2px; }
+/* Same treatment as the nav: scroll rather than wrap, so a narrow screen keeps the
+   presets on one line instead of stacking them or clipping the last one. */
+.presets { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+.presets::-webkit-scrollbar { display: none; }
 .preset {
   font: inherit;
   font-size: 13px;
@@ -65,6 +68,8 @@ function apply() {
 .custom {
   position: absolute;
   right: 0;
+  max-width: calc(100vw - 32px);
+  flex-wrap: wrap;
   top: calc(100% + 8px);
   display: flex;
   gap: 10px;

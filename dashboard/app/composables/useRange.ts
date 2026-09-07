@@ -43,15 +43,36 @@ export function useRange() {
   return { params, active, setPreset, setCustom }
 }
 
-/** Every page fetches with the same key shape, so the range switch invalidates cleanly. */
+/**
+ * Every page fetches with the same key shape, so the range switch invalidates cleanly.
+ *
+ * The request does not block the page. These queries aggregate over the whole install
+ * base and take seconds on the wider ranges; resolving them during SSR meant the browser
+ * got no HTML at all until the slowest one finished, so the entire page - nav, range
+ * picker, headings - waited on the charts. `server: false` renders the shell
+ * immediately and fetches after hydration, and every chart already has a loading state.
+ *
+ * Nothing here is indexable (the whole dashboard is behind a session) and the charts are
+ * client-only anyway, so there is nothing to lose by not rendering them on the server.
+ */
 export function useRangedFetch<T>(path: string) {
   const { params } = useRange()
-  return useFetch<T>(path, {
+  const result = useFetch<T>(path, {
     query: params,
     key: path,
     watch: [params],
+    lazy: true,
+    server: false,
     // The API is session-protected, and during SSR a plain $fetch would call it without
     // the incoming cookie and get a 401.
     $fetch: useRequestFetch(),
   })
+
+  // `pending` is false while the status is still `idle`, which is what it is during SSR
+  // and on the first client tick when `server: false`. Using it directly would render
+  // "No data in this range." for a frame before the request even starts, so treat
+  // anything that is not yet settled as loading.
+  const pending = computed(() => result.status.value === 'idle' || result.status.value === 'pending')
+
+  return { ...result, pending }
 }

@@ -167,7 +167,12 @@ a { color: inherit; }
 .brand { font-weight: 650; letter-spacing: -0.01em; white-space: nowrap; }
 .brand span { color: var(--text-muted); font-weight: 450; }
 
-.nav { display: flex; gap: 2px; flex-wrap: wrap; }
+/* Scrolls sideways rather than wrapping. Wrapping turned the five links into a vertical
+   stack on a phone, which grew the sticky header to most of the viewport and pushed the
+   range picker off the right edge. */
+.nav { display: flex; gap: 2px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.nav::-webkit-scrollbar { display: none; }
+.nav a { white-space: nowrap; }
 .nav a {
   padding: 5px 11px;
   border-radius: 7px;
@@ -179,6 +184,29 @@ a { color: inherit; }
 .nav a.router-link-active { background: var(--hover); color: var(--text-primary); }
 
 .spacer { flex: 1; }
+
+/* Below this the header stops being one row: brand and account stay on the first line,
+   the section links and the range picker each get their own scrollable line. */
+@media (max-width: 860px) {
+  .topbar {
+    flex-wrap: wrap;
+    gap: 10px 12px;
+    padding: 10px 16px;
+    align-items: center;
+  }
+  /* Pushes everything after the brand onto the next line. */
+  .topbar .spacer { flex-basis: 100%; order: 1; height: 0; }
+  .topbar .nav { order: 2; width: 100%; margin: 0 -16px; padding: 0 16px; }
+  .topbar .range { order: 3; width: 100%; }
+  .topbar .who { order: 0; margin-left: auto; }
+  .shell { padding: 0 16px 48px; }
+}
+
+@media (max-width: 480px) {
+  .topbar { padding: 10px 12px; }
+  .topbar .nav { margin: 0 -12px; padding: 0 12px; }
+  .shell { padding: 0 12px 40px; }
+}
 
 .card {
   background: var(--surface);
