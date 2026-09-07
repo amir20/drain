@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.4](https://github.com/amir20/drain/compare/v1.1.3...v1.1.4) (2026-09-07)
+
+### Bug Fixes
+
+* **deploy:** prune services that are no longer in the compose files ([7e6723f](https://github.com/amir20/drain/commit/7e6723f83dad6fc964553281abdd537c811fab41))
+
+### Performance Improvements
+
+* **dashboard:** stop rescanning and row-multiplying on Features and Environment ([88fcab7](https://github.com/amir20/drain/commit/88fcab722445271a4c6291520ae2998dd4ec26bd))
+
 ## [1.1.3](https://github.com/amir20/drain/compare/v1.1.2...v1.1.3) (2026-09-07)
 
 ### Features
