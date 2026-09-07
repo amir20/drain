@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.5](https://github.com/amir20/drain/compare/v1.1.4...v1.1.5) (2026-09-07)
+
+### Bug Fixes
+
+* **dashboard:** render before the data arrives, fit the header on a phone, build once ([5f10d0a](https://github.com/amir20/drain/commit/5f10d0a67a9b7fb16c4e0878b355270cccaff1c0))
+
 ## [1.1.4](https://github.com/amir20/drain/compare/v1.1.3...v1.1.4) (2026-09-07)
 
 ### Bug Fixes
