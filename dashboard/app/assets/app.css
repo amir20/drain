@@ -1,0 +1,244 @@
+/*
+ * Palette: the validated eight-slot categorical order (blue, orange, aqua, yellow,
+ * magenta, green, violet, red) plus chart chrome. Dark mode is a selected set of steps
+ * for the dark surface, not an automatic flip of the light one.
+ */
+:root {
+  color-scheme: light;
+
+  --page:            #f9f9f7;
+  --surface:         #fcfcfb;
+  --text-primary:    #0b0b0b;
+  --text-secondary:  #52514e;
+  --text-muted:      #898781;
+  --grid:            #e1e0d9;
+  --axis:            #c3c2b7;
+  --border:          rgba(11, 11, 11, 0.1);
+  --hover:           rgba(11, 11, 11, 0.04);
+
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #4a3aa7;
+  --series-8: #e34948;
+
+  /* Sequential blue ramp, for the cohort heatmap. */
+  --seq-100: #cde2fb;
+  --seq-200: #9ec5f4;
+  --seq-300: #6da7ec;
+  --seq-400: #3987e5;
+  --seq-500: #256abf;
+  --seq-600: #184f95;
+  --seq-700: #0d366b;
+
+  /* Ordinal ramp: one hue, monotone lightness, for ordered bands (tenure, engagement
+     depth, deployment size). Validated with the dataviz --ordinal checks against this
+     surface: monotone L, adjacent dL >= 0.06, light end 2.06:1. */
+  --ord-1: #86b6ef;
+  --ord-2: #5598e7;
+  --ord-3: #2a78d6;
+  --ord-4: #1c5cab;
+  --ord-5: #104281;
+  /* Reserved for an "unknown" band, which has no place on an ordered scale. */
+  --ord-none: #b6b5ae;
+
+  --good:     #0ca30c;
+  --critical: #d03b3b;
+  --delta-up: #006300;
+
+  --radius: 10px;
+  --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --page:           #0d0d0d;
+    --surface:        #1a1a19;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --grid:           #2c2c2a;
+    --axis:           #383835;
+    --border:         rgba(255, 255, 255, 0.1);
+    --hover:          rgba(255, 255, 255, 0.06);
+
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #008300;
+    --series-7: #9085e9;
+    --series-8: #e66767;
+
+    --seq-100: #184f95;
+    --seq-200: #1c5cab;
+    --seq-300: #256abf;
+    --seq-400: #2a78d6;
+    --seq-500: #3987e5;
+    --seq-600: #5598e7;
+    --seq-700: #86b6ef;
+
+    --ord-1: #184f95;
+    --ord-2: #256abf;
+    --ord-3: #3987e5;
+    --ord-4: #6da7ec;
+    --ord-5: #9ec5f4;
+    --ord-none: #55554f;
+
+    --delta-up: #0ca30c;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --page:           #0d0d0d;
+  --surface:        #1a1a19;
+  --text-primary:   #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted:     #898781;
+  --grid:           #2c2c2a;
+  --axis:           #383835;
+  --border:         rgba(255, 255, 255, 0.1);
+  --hover:          rgba(255, 255, 255, 0.06);
+
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+  --series-7: #9085e9;
+  --series-8: #e66767;
+
+  --seq-100: #184f95;
+  --seq-200: #1c5cab;
+  --seq-300: #256abf;
+  --seq-400: #2a78d6;
+  --seq-500: #3987e5;
+  --seq-600: #5598e7;
+  --seq-700: #86b6ef;
+
+  --ord-1: #184f95;
+  --ord-2: #256abf;
+  --ord-3: #3987e5;
+  --ord-4: #6da7ec;
+  --ord-5: #9ec5f4;
+  --ord-none: #55554f;
+
+  --delta-up: #0ca30c;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text-primary);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; }
+
+.shell { max-width: 1340px; margin: 0 auto; padding: 0 24px 64px; }
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 14px 24px;
+  background: color-mix(in srgb, var(--page) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand { font-weight: 650; letter-spacing: -0.01em; white-space: nowrap; }
+.brand span { color: var(--text-muted); font-weight: 450; }
+
+.nav { display: flex; gap: 2px; flex-wrap: wrap; }
+.nav a {
+  padding: 5px 11px;
+  border-radius: 7px;
+  text-decoration: none;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.nav a:hover { background: var(--hover); color: var(--text-primary); }
+.nav a.router-link-active { background: var(--hover); color: var(--text-primary); }
+
+.spacer { flex: 1; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px 8px;
+}
+
+.card > header { margin-bottom: 4px; }
+.card h2 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: -0.005em; }
+.card p.hint {
+  margin: 4px 0 12px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  max-width: 78ch;
+}
+
+.grid { display: grid; gap: 16px; }
+.grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1080px) {
+  .grid.cols-2, .grid.cols-3, .grid.cols-4 { grid-template-columns: minmax(0, 1fr); }
+}
+
+.section-title {
+  margin: 32px 0 12px;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.btn {
+  font: inherit;
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.btn:hover { background: var(--hover); }
+
+table.data { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+table.data th, table.data td {
+  padding: 6px 10px;
+  text-align: right;
+  border-bottom: 1px solid var(--grid);
+  white-space: nowrap;
+}
+table.data th:first-child, table.data td:first-child { text-align: left; }
+table.data th {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.muted { color: var(--text-muted); }
+.scroll-x { overflow-x: auto; }

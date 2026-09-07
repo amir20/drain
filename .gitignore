@@ -9,3 +9,4 @@ __pycache__
 .playwright-mcp
 .claude
 node_modules
+secrets/
