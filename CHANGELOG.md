@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.6](https://github.com/amir20/drain/compare/v1.1.5...v1.1.6) (2026-09-07)
+
+### Performance Improvements
+
+* **dashboard:** cache the analytics endpoints against the refresh timestamp ([1af13f0](https://github.com/amir20/drain/commit/1af13f0fa56b2fb6215cad0f8e343cc1bf5f25e0))
+
 ## [1.1.5](https://github.com/amir20/drain/compare/v1.1.4...v1.1.5) (2026-09-07)
 
 ### Bug Fixes
