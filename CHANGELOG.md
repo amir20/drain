@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.1](https://github.com/amir20/drain/compare/v1.1.0...v1.1.1) (2026-09-07)
+
+### Bug Fixes
+
+* **deploy:** keep swarm config names under the 64-character limit ([f1daa04](https://github.com/amir20/drain/commit/f1daa04ce7e1aff279118d279550f126bb78c231))
+
 ## [1.1.0](https://github.com/amir20/drain/compare/v1.0.21...v1.1.0) (2026-09-07)
 
 ### Features
