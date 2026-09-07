@@ -45,7 +45,7 @@ const enabledColumns = (cond: (index: number, key: string) => string) =>
 const unpivot = <T extends Record<string, number>>(row: T) =>
   ALL.map((key, i) => ({ key, enabled: Number(row[`e${i}` as keyof T] ?? 0) }))
 
-export default defineEventHandler(async (event) => {
+export default cachedAnalytics(async (event) => {
   const range = resolveRange(event)
   const s = snapshot(range)
   const latest = latestState(range)

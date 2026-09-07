@@ -5,7 +5,7 @@
  */
 const TOP_VERSIONS = 5
 
-export default defineEventHandler(async (event) => {
+export default cachedAnalytics(async (event) => {
   const range = resolveRange(event)
   const s = snapshot(range)
   const state = latestState(range)

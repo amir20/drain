@@ -6,7 +6,7 @@
  * calendar day (a few hundred rows for a year), so the DAU/WAU/MAU series is a range
  * scan on a primary key rather than the six-CTE interval sweep it replaces.
  */
-export default defineEventHandler(async (event) => {
+export default cachedAnalytics(async (event) => {
   const range = resolveRange(event)
   const wk = weeklyWindow(range)
 

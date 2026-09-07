@@ -4,7 +4,7 @@
  * `active_days` is materialised on the weekly snapshot, so intensity and depth are a
  * group-by over a column instead of a count-distinct over daily rows.
  */
-export default defineEventHandler(async (event) => {
+export default cachedAnalytics(async (event) => {
   const range = resolveRange(event)
   const wk = weeklyWindow(range)
 

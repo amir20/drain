@@ -11,7 +11,7 @@
  */
 const MAX_WEEK_INDEX = 12
 
-export default defineEventHandler(async (event) => {
+export default cachedAnalytics(async (event) => {
   const range = resolveRange(event)
   const wk = weeklyWindow(range)
 
