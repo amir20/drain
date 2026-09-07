@@ -2,28 +2,67 @@
 --
 -- Derived analytics layer for the Nuxt dashboard.
 --
--- The dashboard never reads `beacon` or parses JSONB at request time. Everything it
--- needs lives in narrow, typed, pre-aggregated tables refreshed by
--- drain_refresh_analytics(). A page load is a handful of index scans over tables that
--- are either tiny (a row per day) or well pruned (hypertables bucketed by time).
+-- Design rule: NOTHING here mirrors the beacon payload. The metadata JSONB is carried
+-- through verbatim and parsed at query time by the helper functions below. That means
+-- adding a field to the beacon - a new feature flag, a new setting - needs no migration,
+-- no column, and no rebuild: it is already in the JSONB, and a new chart just reads it.
 --
--- Idempotent: safe to run on every deploy.
+-- The cost is parsing JSONB on read instead of once on write, which is a few hundred
+-- milliseconds on the widest ranges. That is the deliberate trade: a slower query is
+-- cheap, a schema change that has to be threaded through five tables is not.
 --
--- Statements are applied one at a time, not wrapped in a transaction: TimescaleDB
--- refuses to create a continuous aggregate inside a transaction block. Everything here
--- is guarded, so a run that dies half way is finished by the next one.
+-- What IS materialised is only what cannot be derived cheaply on demand:
+--   * a weekly rollup, because the alternative is DISTINCT ON over ~10M rows per panel
+--   * one row per install, because cohorts need every install's first and last day
+--   * counts whose shape never changes (DAU/WAU/MAU, cohorts, weekly lifecycle)
+--
+-- Idempotent: safe to run on every deploy. Statements are applied one at a time rather
+-- than in a transaction, because TimescaleDB refuses to create a continuous aggregate
+-- inside a transaction block; everything is guarded, so a run that dies half way is
+-- finished by the next one.
 
 -- ---------------------------------------------------------------------------
--- Helpers. IMMUTABLE so they can be used in indexes and generated columns.
+-- Reading the beacon payload.
+--
+-- These are the only place that knows what a metadata field is called or how it is
+-- shaped. IMMUTABLE so they can be used in indexes and generated columns.
 -- ---------------------------------------------------------------------------
 
--- Patch releases are noise: a year holds 554 distinct versions but only a couple of
--- dozen minors. Everything version-shaped is rolled up to the minor.
-CREATE OR REPLACE FUNCTION drain_minor_version(v text) RETURNS text
+-- Booleans arrive as real JSON booleans, but a field that predates a release is simply
+-- absent - which is 'off', not 'unknown'.
+CREATE OR REPLACE FUNCTION drain_flag(m jsonb, field text) RETURNS boolean
   LANGUAGE sql IMMUTABLE PARALLEL SAFE AS
-$$ SELECT coalesce(nullif(substring(v from '^v?[0-9]+[.][0-9]+'), ''), 'unknown') $$;
+$$ SELECT COALESCE((m ->> field)::boolean, false) $$;
 
-CREATE OR REPLACE FUNCTION drain_browser_family(ua text) RETURNS text
+CREATE OR REPLACE FUNCTION drain_int(m jsonb, field text) RETURNS integer
+  LANGUAGE sql IMMUTABLE PARALLEL SAFE AS
+$$ SELECT (m ->> field)::integer $$;
+
+-- Is a named feature switched on for this install?
+--
+-- Two features are not plain flags - authentication is "a provider other than none", and
+-- multiple browsers is a count - so they are named here. Everything else falls through to
+-- the flag, which means adding a boolean feature to the dashboard is one entry in the
+-- FEATURES list in the API and no SQL change at all.
+CREATE OR REPLACE FUNCTION drain_feature(m jsonb, feature text) RETURNS boolean
+  LANGUAGE sql IMMUTABLE PARALLEL SAFE AS
+$$ SELECT CASE feature
+     WHEN 'auth'         THEN COALESCE(NULLIF(m ->> 'authProvider', ''), 'none') <> 'none'
+     WHEN 'multiClient'  THEN COALESCE((m ->> 'clients')::int, 0) > 1
+     ELSE COALESCE((m ->> feature)::boolean, false)
+   END $$;
+
+CREATE OR REPLACE FUNCTION drain_auth_provider(m jsonb) RETURNS text
+  LANGUAGE sql IMMUTABLE PARALLEL SAFE AS
+$$ SELECT COALESCE(NULLIF(m ->> 'authProvider', ''), 'none') $$;
+
+-- Patch releases are noise: a year holds ~554 distinct versions but only a couple of
+-- dozen minors.
+CREATE OR REPLACE FUNCTION drain_minor_version(m jsonb) RETURNS text
+  LANGUAGE sql IMMUTABLE PARALLEL SAFE AS
+$$ SELECT COALESCE(NULLIF(substring(m ->> 'version' from '^v?[0-9]+[.][0-9]+'), ''), 'unknown') $$;
+
+CREATE OR REPLACE FUNCTION drain_browser(m jsonb) RETURNS text
   LANGUAGE sql IMMUTABLE PARALLEL SAFE AS
 $$ SELECT CASE
      WHEN ua IS NULL OR ua = ''                 THEN 'Unknown'
@@ -32,9 +71,10 @@ $$ SELECT CASE
      WHEN ua LIKE '%Firefox/%'                  THEN 'Firefox'
      WHEN ua LIKE '%Chrome/%'                   THEN 'Chrome'
      WHEN ua LIKE '%Safari/%'                   THEN 'Safari'
-     ELSE 'Other' END $$;
+     ELSE 'Other' END
+   FROM (SELECT m ->> 'browser') AS x(ua) $$;
 
-CREATE OR REPLACE FUNCTION drain_os_family(ua text) RETURNS text
+CREATE OR REPLACE FUNCTION drain_os(m jsonb) RETURNS text
   LANGUAGE sql IMMUTABLE PARALLEL SAFE AS
 $$ SELECT CASE
      WHEN ua IS NULL OR ua = ''  THEN 'Unknown'
@@ -43,21 +83,37 @@ $$ SELECT CASE
      WHEN ua LIKE '%iPhone%' OR ua LIKE '%iPad%' OR ua LIKE '%iPod%'    THEN 'iOS'
      WHEN ua LIKE '%Mac OS X%' OR ua LIKE '%Macintosh%'                 THEN 'macOS'
      WHEN ua LIKE '%Linux%' OR ua LIKE '%X11%'                          THEN 'Linux'
-     ELSE 'Other' END $$;
+     ELSE 'Other' END
+   FROM (SELECT m ->> 'browser') AS x(ua) $$;
 
--- Ordinal so the UI can sort buckets without shipping label prefixes like '3 - 6 to 20'.
---
--- Five ordered bands plus an unknown. Five is a ceiling, not a preference: an ordered
--- scale has to be drawn with a one-hue ramp for the order to be visible, and a ramp
--- needs roughly a 0.06 lightness gap between steps to stay separable - which leaves five
--- steps between "barely darker than the surface" and black. A sixth band would be a
--- split the reader cannot see, so 21-50 and 51-200 are one band.
-CREATE OR REPLACE FUNCTION drain_size_bucket(c int) RETURNS smallint
+-- Ordinal, so the UI can sort without label prefixes like '3 - 6 to 20'. Five bands plus
+-- an unknown: an ordered scale is drawn with a one-hue ramp, and a ramp holds about five
+-- steps before adjacent shades stop reading as distinct.
+CREATE OR REPLACE FUNCTION drain_size_bucket(m jsonb) RETURNS smallint
   LANGUAGE sql IMMUTABLE PARALLEL SAFE AS
 $$ SELECT CASE
      WHEN c IS NULL THEN 5 WHEN c = 0 THEN 0 WHEN c <= 5 THEN 1
      WHEN c <= 20 THEN 2 WHEN c <= 200 THEN 3
-     ELSE 4 END::smallint $$;
+     ELSE 4 END::smallint
+   FROM (SELECT (m ->> 'runningContainers')::int) AS x(c) $$;
+
+-- ---------------------------------------------------------------------------
+-- Views over the continuous aggregates.
+--
+-- Beacons with no ServerID all land on the empty key and would roll up into a single
+-- phantom install reporting every minute; excluding them is not optional, so it lives
+-- here rather than in every query. These also normalise the bucket to a plain date.
+-- ---------------------------------------------------------------------------
+
+CREATE OR REPLACE VIEW client_daily AS
+SELECT day::date AS day, client_id, last_metadata AS metadata
+FROM daily_client_events
+WHERE client_id <> '';
+
+CREATE OR REPLACE VIEW client_starts AS
+SELECT day::date AS day, client_id
+FROM daily_client_starts
+WHERE client_id <> '';
 
 -- ---------------------------------------------------------------------------
 -- Refresh bookkeeping
@@ -73,10 +129,10 @@ CREATE TABLE IF NOT EXISTS analytics_meta (
 -- ---------------------------------------------------------------------------
 -- Hourly continuous aggregate.
 --
--- Only exists so the 1-day and 7-day ranges can be charted at hour granularity.
--- A year of hourly per-client rows would be ~24x the daily aggregate, so it carries a
--- short retention: the rollups the dashboard actually serves live in
--- active_counts_hourly, which is a row per hour and kept forever.
+-- Only exists so the 1-day and 7-day ranges can be charted at hour granularity. A year
+-- of hourly per-client rows would be ~24x the daily aggregate, so it carries a short
+-- retention; what the dashboard serves is active_counts_hourly, a row per hour that
+-- accumulates from it before it is dropped.
 -- ---------------------------------------------------------------------------
 
 DO $$
@@ -85,17 +141,14 @@ BEGIN
                  WHERE view_name = 'hourly_client_events') THEN
     CREATE MATERIALIZED VIEW hourly_client_events
     WITH (timescaledb.continuous) AS
-    SELECT time_bucket('1 hour', time) AS hour,
-           client_id,
-           count(*) AS beacons
-    FROM beacon
-    WHERE name = 'events'
+    SELECT time_bucket('1 hour', time) AS hour, client_id, count(*) AS beacons
+    FROM beacon WHERE name = 'events'
     GROUP BY 1, 2
     WITH NO DATA;
 
     PERFORM add_continuous_aggregate_policy('hourly_client_events',
-      start_offset    => INTERVAL '3 days',
-      end_offset      => INTERVAL '10 minutes',
+      start_offset      => INTERVAL '3 days',
+      end_offset        => INTERVAL '10 minutes',
       schedule_interval => INTERVAL '10 minutes');
 
     PERFORM add_retention_policy('hourly_client_events', drop_after => INTERVAL '15 days');
@@ -105,87 +158,15 @@ END $$;
 CREATE INDEX IF NOT EXISTS idx_hourly_client_events_hour ON hourly_client_events (hour);
 
 -- ---------------------------------------------------------------------------
--- client_snapshot_daily
+-- client_lifecycle: one row per install ever seen.
 --
--- One row per active install per day, with the JSONB already parsed into typed
--- columns. This is the workhorse for ranges up to ~90 days.
--- ---------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS client_snapshot_daily (
-  day                date    NOT NULL,
-  client_id          text    NOT NULL,
-  version            text    NOT NULL,
-  auth_provider      text    NOT NULL,
-  browser            text    NOT NULL,
-  os                 text    NOT NULL,
-  clients            integer NOT NULL,
-  running_containers integer,
-  size_bucket        smallint NOT NULL,
-  has_actions        boolean NOT NULL,
-  has_hostname       boolean NOT NULL,
-  has_custom_address boolean NOT NULL,
-  has_custom_base    boolean NOT NULL,
-  is_swarm           boolean NOT NULL,
-  has_auth           boolean NOT NULL,
-  multi_client       boolean NOT NULL,
-  feature_count      smallint NOT NULL,
-  PRIMARY KEY (day, client_id)
-);
-
-SELECT create_hypertable('client_snapshot_daily', 'day',
-         chunk_time_interval => INTERVAL '7 days', if_not_exists => TRUE, migrate_data => TRUE);
-
-CREATE INDEX IF NOT EXISTS idx_snapshot_daily_client ON client_snapshot_daily (client_id, day DESC);
-
--- ---------------------------------------------------------------------------
--- client_snapshot_weekly
+-- Collapses the `min(day) GROUP BY client_id` that every cohort query would otherwise
+-- recompute over the whole aggregate, and carries the install's most recent metadata so
+-- the "what is everyone running right now" panels are one indexed scan.
 --
--- Same shape rolled up to ISO weeks (~7x smaller), plus how many days that week the
--- install actually reported. Serves the 90-day, 1-year and long custom ranges.
--- ---------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS client_snapshot_weekly (
-  week               date    NOT NULL,
-  client_id          text    NOT NULL,
-  version            text    NOT NULL,
-  auth_provider      text    NOT NULL,
-  browser            text    NOT NULL,
-  os                 text    NOT NULL,
-  clients            integer NOT NULL,
-  peak_clients       integer NOT NULL,
-  running_containers integer,
-  size_bucket        smallint NOT NULL,
-  has_actions        boolean NOT NULL,
-  has_hostname       boolean NOT NULL,
-  has_custom_address boolean NOT NULL,
-  has_custom_base    boolean NOT NULL,
-  is_swarm           boolean NOT NULL,
-  has_auth           boolean NOT NULL,
-  multi_client       boolean NOT NULL,
-  feature_count      smallint NOT NULL,
-  active_days        smallint NOT NULL,
-  -- How long the install had existed by that week: 0 under a week, 1 under 4 weeks,
-  -- 2 under 90 days, 3 under a year, 4 beyond. Materialised here so the tenure chart is
-  -- a group-by rather than a 1.6M x 1.7M join on every page load.
-  tenure_band        smallint NOT NULL,
-  PRIMARY KEY (week, client_id)
-);
-
-SELECT create_hypertable('client_snapshot_weekly', 'week',
-         chunk_time_interval => INTERVAL '90 days', if_not_exists => TRUE, migrate_data => TRUE);
-
-CREATE INDEX IF NOT EXISTS idx_snapshot_weekly_client ON client_snapshot_weekly (client_id, week DESC);
-
--- ---------------------------------------------------------------------------
--- client_lifecycle
---
--- A row per install ever seen. Collapses the `min(day) GROUP BY client_id` that every
--- cohort query in the Grafana dashboards recomputed from scratch over the whole
--- aggregate. ~2M rows, and most panels only touch the ~380k with ever_active.
---
--- activated = first `events` beacon, never the first `start`. `start` comes from ~4x
--- more installs than `events`; seeding cohorts from starts while measuring activity
--- from events inflates every denominator and fakes a retention cliff.
+-- `activated` is the first `events` beacon, never the first `start`. `start` comes from
+-- ~4x more installs; seeding cohorts from starts while measuring activity from events
+-- inflates every denominator and fakes a retention cliff.
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS client_lifecycle (
@@ -195,69 +176,60 @@ CREATE TABLE IF NOT EXISTS client_lifecycle (
   first_event_week date,
   first_start_day  date,
   last_start_day   date,
-  ever_active      boolean NOT NULL DEFAULT false
+  ever_active      boolean NOT NULL DEFAULT false,
+  metadata         jsonb
 );
 
-CREATE INDEX IF NOT EXISTS idx_lifecycle_first_event  ON client_lifecycle (first_event_day) WHERE ever_active;
-CREATE INDEX IF NOT EXISTS idx_lifecycle_last_event   ON client_lifecycle (last_event_day)  WHERE ever_active;
-CREATE INDEX IF NOT EXISTS idx_lifecycle_cohort       ON client_lifecycle (first_event_week) WHERE ever_active;
-CREATE INDEX IF NOT EXISTS idx_lifecycle_first_start  ON client_lifecycle (first_start_day);
+-- CREATE TABLE IF NOT EXISTS does nothing to a table that already exists, so a column
+-- added to this file after it has been applied somewhere needs its own ALTER. Adding one
+-- here is the exception, not the pattern: a new *beacon* field belongs in the metadata
+-- JSONB and needs no column at all.
+ALTER TABLE client_lifecycle ADD COLUMN IF NOT EXISTS metadata jsonb;
+
+CREATE INDEX IF NOT EXISTS idx_lifecycle_first_event ON client_lifecycle (first_event_day) WHERE ever_active;
+CREATE INDEX IF NOT EXISTS idx_lifecycle_last_event  ON client_lifecycle (last_event_day)  WHERE ever_active;
+CREATE INDEX IF NOT EXISTS idx_lifecycle_cohort      ON client_lifecycle (first_event_week) WHERE ever_active;
+CREATE INDEX IF NOT EXISTS idx_lifecycle_first_start ON client_lifecycle (first_start_day);
 
 -- ---------------------------------------------------------------------------
--- client_latest
+-- client_weekly: the daily aggregate rolled up to ISO weeks, ~7x smaller.
 --
--- One row per install that has ever been active, holding its most recent reported
--- state. Every "of everyone using Dozzle right now, how many have X" panel reads this.
+-- The one materialised rollup, and the reason a one-year range is in the same latency
+-- class as a 30-day one. `metadata` is the install's last beacon that week, so every
+-- dimension panel reads the same shape as client_daily.
 --
--- Those panels used to be a DISTINCT ON (client_id) over the whole snapshot for the
--- range - a sort of millions of rows per panel per request. Because every preset range
--- ends today, "installs active since <from>" is exactly `last_event_day >= from`, and
--- their latest state in the range is their latest state full stop. So the sort is done
--- once here and the panels become one indexed scan of ~230k rows.
---
--- A custom range that ends in the past is not the same question, and the API falls back
--- to the DISTINCT ON over the snapshot for those.
+-- `first_event_day` is denormalised here only so the tenure chart does not have to join
+-- 1.6M rows to 1.7M on every request. The tenure *bands* deliberately are not stored -
+-- they live in the API, where changing them is an edit rather than a migration.
 -- ---------------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS client_latest (
-  client_id          text PRIMARY KEY,
-  last_event_day     date    NOT NULL,
-  version            text    NOT NULL,
-  auth_provider      text    NOT NULL,
-  browser            text    NOT NULL,
-  os                 text    NOT NULL,
-  clients            integer NOT NULL,
-  running_containers integer,
-  size_bucket        smallint NOT NULL,
-  has_actions        boolean NOT NULL,
-  has_hostname       boolean NOT NULL,
-  has_custom_address boolean NOT NULL,
-  has_custom_base    boolean NOT NULL,
-  is_swarm           boolean NOT NULL,
-  has_auth           boolean NOT NULL,
-  multi_client       boolean NOT NULL,
-  feature_count      smallint NOT NULL
+CREATE TABLE IF NOT EXISTS client_weekly (
+  week            date NOT NULL,
+  client_id       text NOT NULL,
+  metadata        jsonb,
+  active_days     smallint NOT NULL,
+  peak_clients    integer,
+  first_event_day date,
+  PRIMARY KEY (week, client_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_client_latest_last_event ON client_latest (last_event_day);
+CREATE INDEX IF NOT EXISTS idx_client_weekly_week ON client_weekly (week);
 
 -- ---------------------------------------------------------------------------
--- active_counts_daily
---
--- A row per calendar day. DAU/WAU/MAU are trailing-window distinct counts, which are
--- the single most expensive thing on the old dashboards (the Grafana version ran a
--- six-CTE interval-merge per page load). Computed once here, read as a range scan.
+-- Fixed-shape counts. None of these ever gain a column when the beacon does.
 -- ---------------------------------------------------------------------------
 
+-- DAU/WAU/MAU are trailing-window distinct counts, the single most expensive thing on
+-- the old dashboards. Computed once per refresh; read as a range scan of ~365 rows.
 CREATE TABLE IF NOT EXISTS active_counts_daily (
-  day             date PRIMARY KEY,
-  dau             integer NOT NULL DEFAULT 0,
-  wau             integer NOT NULL DEFAULT 0,
-  mau             integer NOT NULL DEFAULT 0,
-  new_installs    integer NOT NULL DEFAULT 0,
-  resurrected     integer NOT NULL DEFAULT 0,
-  churned         integer NOT NULL DEFAULT 0,
-  first_launches  integer NOT NULL DEFAULT 0
+  day            date PRIMARY KEY,
+  dau            integer NOT NULL DEFAULT 0,
+  wau            integer NOT NULL DEFAULT 0,
+  mau            integer NOT NULL DEFAULT 0,
+  new_installs   integer NOT NULL DEFAULT 0,
+  resurrected    integer NOT NULL DEFAULT 0,
+  churned        integer NOT NULL DEFAULT 0,
+  first_launches integer NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS active_counts_hourly (
@@ -266,13 +238,8 @@ CREATE TABLE IF NOT EXISTS active_counts_hourly (
   beacons         bigint  NOT NULL DEFAULT 0
 );
 
--- ---------------------------------------------------------------------------
--- cohort_retention_weekly
---
--- The full cohort grid, precomputed. cohort_week x week_index, so the retention table,
--- the average retention curve and the W1/W4/W12 trend lines are all one small scan.
--- ---------------------------------------------------------------------------
-
+-- The full cohort grid, so the retention table, the average curve and the W1/W4/W12
+-- trend are all one small scan.
 CREATE TABLE IF NOT EXISTS cohort_retention_weekly (
   cohort_week date     NOT NULL,
   week_index  smallint NOT NULL,
@@ -281,54 +248,23 @@ CREATE TABLE IF NOT EXISTS cohort_retention_weekly (
   PRIMARY KEY (cohort_week, week_index)
 );
 
--- ---------------------------------------------------------------------------
--- weekly_lifecycle
---
--- New / retained / resurrected / churned installs per week.
--- ---------------------------------------------------------------------------
-
 CREATE TABLE IF NOT EXISTS weekly_lifecycle (
-  week        date PRIMARY KEY,
-  active      integer NOT NULL DEFAULT 0,
+  week         date PRIMARY KEY,
+  active       integer NOT NULL DEFAULT 0,
   new_installs integer NOT NULL DEFAULT 0,
-  retained    integer NOT NULL DEFAULT 0,
-  resurrected integer NOT NULL DEFAULT 0,
-  churned     integer NOT NULL DEFAULT 0
+  retained     integer NOT NULL DEFAULT 0,
+  resurrected  integer NOT NULL DEFAULT 0,
+  churned      integer NOT NULL DEFAULT 0
 );
 
-
 -- ---------------------------------------------------------------------------
--- Compression. Snapshot chunks older than 90 days are never rewritten by an
--- incremental refresh, so they can compress. A full rebuild TRUNCATEs, which works on
--- compressed hypertables.
---
--- No segmentby. The obvious choice, compress_segmentby = 'client_id', makes this table
--- BIGGER: there is at most one row per install per day and the chunk interval is 7 days,
--- so segmenting by client_id yields one compressed batch per install holding <= 7 values,
--- which is far too short to compress and carries per-batch overhead instead. Measured on
--- one real chunk: 504 kB -> 1128 kB segmented by client_id (TimescaleDB itself emits
--- "poor compression ratio detected"), against 560 kB -> 112 kB with no segmentby and
--- ordering by (day, client_id). Segmenting would only pay with a chunk interval long
--- enough to give each install a few hundred rows per batch.
---
--- Run unguarded: ALTER ... SET is idempotent, and gating it on compression_settings
--- already existing would pin a database to whatever settings it was first created with.
--- Changing the settings does NOT rewrite existing chunks - to pick up a change on a
--- database that already has compressed chunks, recompress them:
---   SELECT compress_chunk(c, recompress => true)
---     FROM show_chunks('client_snapshot_daily', older_than => INTERVAL '90 days') c;
+-- Superseded by the design above: typed mirrors of the beacon payload, which had to be
+-- edited in lockstep with it. Dropped rather than left behind to go stale.
 -- ---------------------------------------------------------------------------
 
-ALTER TABLE client_snapshot_daily
-  SET (timescaledb.compress,
-       timescaledb.compress_segmentby = '',
-       timescaledb.compress_orderby = 'day, client_id');
+DROP TABLE IF EXISTS client_snapshot_daily;
+DROP TABLE IF EXISTS client_snapshot_weekly;
+DROP TABLE IF EXISTS client_latest;
 
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM timescaledb_information.jobs
-                 WHERE proc_name = 'policy_compression'
-                   AND hypertable_name = 'client_snapshot_daily') THEN
-    PERFORM add_compression_policy('client_snapshot_daily', INTERVAL '90 days');
-  END IF;
-END $$;
+DELETE FROM analytics_meta
+WHERE key IN ('phase_snapshot_daily', 'phase_snapshot_weekly', 'phase_client_latest');

@@ -21,6 +21,11 @@ edited one is re-applied.
 - **Number it** — files are applied in filename order (`003_…`, `004_…`).
 - **Make it idempotent** — `IF NOT EXISTS`, `CREATE OR REPLACE`, `if_not_exists => TRUE`,
   or a guarding `DO $$ ... $$` block. Re-applying it must be a no-op.
+- **Do not add a column for something already in the metadata JSONB.** Add a `drain_*`
+  helper in `001` and read it from the API instead.
+- **Adding a column to a table that already exists needs its own `ALTER TABLE ... ADD
+  COLUMN IF NOT EXISTS`.** `CREATE TABLE IF NOT EXISTS` is a no-op on an existing table,
+  so editing the `CREATE` alone leaves deployed databases without the column.
 - **Do not wrap it in a transaction** — statements are applied one at a time because
   TimescaleDB refuses to create a continuous aggregate inside a transaction block. That
   also means a half-finished run must be safe to resume, which is what idempotency buys.
@@ -29,8 +34,23 @@ edited one is re-applied.
 
 | File | |
 | --- | --- |
-| `001_analytics.sql` | the derived tables the dashboard reads, plus the hourly continuous aggregate |
-| `002_refresh.sql` | `drain_refresh_analytics()`, which rebuilds them |
+| `001_analytics.sql` | the SQL helpers that read the beacon payload, the views and derived tables the dashboard reads, and the hourly continuous aggregate |
+| `002_refresh.sql` | `drain_refresh_analytics()`, which maintains them |
+
+## The one design rule
+
+**No derived table mirrors the beacon payload.** The metadata JSONB is copied through
+verbatim and parsed at query time by the `drain_*` helpers in `001`. Adding a field to
+the beacon therefore needs nothing here at all — no column, no migration, no rebuild.
+
+The cost is parsing JSONB on read rather than once on write: the Features and
+Environment pages take 1.5-8s over a year of data where a typed schema served them in
+under 500ms. Everything else is unaffected, because it reads fixed-shape counts.
+
+Take that trade again when it comes up. These are internal pages loaded a few times a
+day, and the alternative is a schema change threaded through several tables plus a full
+rebuild every time the beacon gains a field. If one page becomes genuinely too slow,
+materialise that single column rather than reinstating a mirror of the payload.
 
 ## Refreshing
 

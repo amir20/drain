@@ -31,6 +31,9 @@ docker compose up migrate               # apply migrations
 docker compose up dashboard             # the dashboard on :3000
 ```
 
+The dashboard is a Nuxt app on Bun; `cd dashboard && bun install && bun run dev` runs it
+directly.
+
 The dashboard needs a GitHub OAuth app and a session password — see
 [`dashboard/README.md`](dashboard/README.md).
 

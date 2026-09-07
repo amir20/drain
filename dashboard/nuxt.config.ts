@@ -5,6 +5,7 @@ export default defineNuxtConfig({
   css: ['~/assets/app.css'],
   ssr: true,
   nitro: {
+    preset: 'bun',
     // The dashboard is a handful of aggregate reads; no need to bundle a cache layer.
     minify: true,
   },

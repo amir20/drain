@@ -11,15 +11,24 @@ const SIZES = ['None', '1–5', '6–20', '21–200', 'Over 200', 'Unknown']
 
 const pct = (n: number, total: number) => (total ? Number(((100 * n) / total).toFixed(2)) : 0)
 
+/** The API returns one row per (bucket, feature); charts want one series per feature. */
+function byKey<T extends { key: string }>(rows: T[] | undefined) {
+  const out = new Map<string, T[]>()
+  for (const r of rows ?? []) out.set(r.key, [...(out.get(r.key) ?? []), r])
+  return out
+}
+
 /** Adoption today. One measure per category, so one hue and a direct label per bar. */
 const adoptionOption = computed(() => {
   void version.value
   const t = theme.value
-  const cur = data.value?.current
+  const cur = data.value?.current ?? []
   const feats = data.value?.features ?? []
-  if (!cur?.installs) return null
+  const installs = cur[0]?.installs ?? 0
+  if (!installs) return null
+  const enabled = new Map(cur.map((r: any) => [r.key, r.enabled]))
   const rows = feats
-    .map((f: any) => ({ label: f.label, value: pct(cur[f.key] ?? 0, cur.installs) }))
+    .map((f: any) => ({ label: f.label, value: pct(enabled.get(f.key) ?? 0, installs) }))
     .sort((a: any, b: any) => a.value - b.value)
   return {
     ...baseOptions(t, { legend: false }),
@@ -42,7 +51,7 @@ const adoptionOption = computed(() => {
     tooltip: {
       ...baseOptions(t).tooltip,
       formatter: (p: any) =>
-        `<b>${p[0].name}</b><br>${p[0].value}% of ${fmtInt(cur.installs)} active installs`,
+        `<b>${p[0].name}</b><br>${p[0].value}% of ${fmtInt(installs)} active installs`,
     },
     series: [
       {
@@ -68,13 +77,14 @@ const overTimeOption = computed(() => {
   const rows = data.value?.overTime ?? []
   const feats = data.value?.features ?? []
   if (!rows.length) return null
+  const series = byKey(rows)
   return {
     ...baseOptions(t, { percent: true }),
     yAxis: { ...baseOptions(t, { percent: true }).yAxis, max: undefined },
     series: feats.map((f: any, i: number) => ({
       name: f.label,
       type: 'line',
-      data: rows.map((r: any) => [r.bucket, pct(r[f.key], r.installs)]),
+      data: (series.get(f.key) ?? []).map((r: any) => [r.bucket, pct(r.enabled, r.installs)]),
       showSymbol: false,
       symbolSize: 8,
       lineStyle: { width: 2, color: t.series[i] },
@@ -121,13 +131,20 @@ const histogramOption = computed(() => {
 })
 
 const sizeRows = computed(() => {
-  const rows = data.value?.bySize ?? []
   const feats = data.value?.features ?? []
-  return rows.map((r: any) => ({
-    label: SIZES[r.size_bucket] ?? 'Unknown',
-    installs: r.installs,
-    cells: feats.map((f: any) => pct(r[f.key], r.installs)),
-  }))
+  const bySize = new Map<number, Map<string, { enabled: number; installs: number }>>()
+  for (const r of data.value?.bySize ?? []) {
+    const row = bySize.get(r.size_bucket) ?? new Map()
+    row.set(r.key, { enabled: r.enabled, installs: r.installs })
+    bySize.set(r.size_bucket, row)
+  }
+  return [...bySize.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([bucket, row]) => ({
+      label: SIZES[bucket] ?? 'Unknown',
+      installs: [...row.values()][0]?.installs ?? 0,
+      cells: feats.map((f: any) => pct(row.get(f.key)?.enabled ?? 0, row.get(f.key)?.installs ?? 0)),
+    }))
 })
 </script>
 

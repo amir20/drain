@@ -44,7 +44,7 @@ export interface Range {
   /**
    * True when the range runs up to today. For these - every preset, and most custom
    * ranges - "installs active in the range" is exactly "last seen on or after `from`",
-   * which `client_latest` answers with one indexed scan.
+   * which `client_lifecycle` answers with one indexed scan.
    */
   endsToday: boolean
   label: string
@@ -190,27 +190,30 @@ export function weeklyWindow(range: Range): { from: string; widened: boolean } {
 }
 
 /**
- * Which pre-aggregated snapshot to read. The weekly table is ~7x smaller and is what
- * keeps a one-year range in the same latency class as a 30-day one.
+ * Which per-install-per-bucket source to read. Both expose (bucket, client_id, metadata),
+ * so a query only differs by the two names below. The weekly rollup is ~7x smaller and
+ * is what keeps a one-year range in the same latency class as a 30-day one.
  */
 export function snapshot(range: Range): { table: string; timeCol: string; from: string } {
   return range.bucket === 'week'
-    ? { table: 'client_snapshot_weekly', timeCol: 'week', from: range.weekFrom }
-    : { table: 'client_snapshot_daily', timeCol: 'day', from: range.dayFrom }
+    ? { table: 'client_weekly', timeCol: 'week', from: range.weekFrom }
+    : { table: 'client_daily', timeCol: 'day', from: range.dayFrom }
 }
 
 /**
  * The source for "state of every install active in this range". Ranges ending today read
- * the precomputed per-install latest state; a range ending in the past has to resolve
- * each install's last activity *inside* that window, which only the snapshot can answer.
+ * client_lifecycle, which already holds each install's most recent metadata; a range
+ * ending in the past has to resolve each install's last activity *inside* that window,
+ * which only the per-bucket source can answer.
  *
- * Both return one row per install with the same columns, so callers write one query.
+ * Both yield one row per install with a `metadata` column, so callers write one query.
  */
 export function latestState(range: Range): { sql: string; params: [string, string] } {
   if (range.endsToday) {
     return {
-      sql: `SELECT * FROM client_latest
-             WHERE last_event_day >= $1::date AND last_event_day <= $2::date`,
+      sql: `SELECT metadata FROM client_lifecycle
+             WHERE ever_active
+               AND last_event_day >= $1::date AND last_event_day <= $2::date`,
       params: [range.dayFrom, range.to],
     }
   }
@@ -224,7 +227,7 @@ export function latestState(range: Range): { sql: string; params: [string, strin
              WHERE ${s.timeCol} BETWEEN $1 AND $2
              GROUP BY client_id
           )
-          SELECT t.*
+          SELECT t.metadata
             FROM ${s.table} t
             JOIN last l ON l.client_id = t.client_id AND l.${s.timeCol} = t.${s.timeCol}
            WHERE t.${s.timeCol} BETWEEN $1 AND $2`,

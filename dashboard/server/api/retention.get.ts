@@ -40,10 +40,19 @@ export default defineEventHandler(async (event) => {
 
     // The active base split by how long ago each install first reported. A base that is
     // mostly under a month old is churning; a thickening 1-year band is real retention.
-    // tenure_band is materialised on the snapshot, so this is a group-by with no join.
+    //
+    // The band boundaries live here rather than in the schema: changing them is an edit,
+    // not a migration and a rebuild. client_weekly carries first_event_day so this stays
+    // a single scan with no join.
     query<{ week: string; band: number; installs: number }>(
-      `SELECT week, tenure_band AS band, count(*)::int AS installs
-         FROM client_snapshot_weekly
+      `SELECT week,
+              CASE WHEN week - first_event_day < 7   THEN 0
+                   WHEN week - first_event_day < 28  THEN 1
+                   WHEN week - first_event_day < 90  THEN 2
+                   WHEN week - first_event_day < 365 THEN 3
+                   ELSE 4 END AS band,
+              count(*)::int AS installs
+         FROM client_weekly
         WHERE week BETWEEN $1 AND $2
           AND week < date_trunc('week', CURRENT_DATE)::date
         GROUP BY 1, 2 ORDER BY 1, 2`,

@@ -97,7 +97,7 @@ export default defineEventHandler(async (event) => {
       query<{ ever_active: number; launch_only: number; active_28d: number }>(
         `SELECT count(*) FILTER (WHERE ever_active)::int     AS ever_active,
                 count(*) FILTER (WHERE NOT ever_active)::int AS launch_only,
-                count(*) FILTER (WHERE last_event_day > CURRENT_DATE - 28)::int AS active_28d
+                count(*) FILTER (WHERE ever_active AND last_event_day > CURRENT_DATE - 28)::int AS active_28d
            FROM client_lifecycle`,
       ),
     ])
