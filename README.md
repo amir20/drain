@@ -50,22 +50,46 @@ Tagging `v*` builds `amir20/drain` and `amir20/drain-dashboard` and runs
 `docker stack deploy` against the beacon host. By hand:
 
 ```sh
-# Credentials reach the stack as Docker secrets, read from ./secrets (gitignored).
-mkdir -p secrets
-printf '%s' "$POSTGRES_PASSWORD"          > secrets/postgres_password
-printf '%s' "$OAUTH_GITHUB_CLIENT_SECRET" > secrets/oauth_github_client_secret
-printf '%s' "$SESSION_PASSWORD"           > secrets/session_password
 CONFIG_VERSION=$(git rev-parse --short=12 HEAD) OAUTH_GITHUB_CLIENT_ID=... \
   docker --context beacon stack deploy -c docker-compose.yml -c docker-compose.prod.yml data
 ```
 
-The deploy needs these set in the repository settings:
+That works by hand because no credential travels with the deploy — the three below live
+on the host as Docker secrets and the stack only names them.
+
+### Host secrets
+
+Created once, directly on the beacon host. They are never in this repository, never in
+GitHub, and never in a service's environment, where `docker service inspect` would print
+them:
+
+```sh
+# The database's CURRENT password. Postgres only reads POSTGRES_PASSWORD_FILE when it
+# initialises an empty volume, so on the existing production volume this must match the
+# role's password until `ALTER ROLE postgres PASSWORD '…'` has been run against the live
+# database. A mismatch fails the migration and takes beacon ingest down.
+printf '%s' 'the-current-password' | docker --context beacon secret create drain_postgres_password_v1 -
+
+# The dashboard's GitHub OAuth app secret.
+printf '%s' 'the-oauth-client-secret' | docker --context beacon secret create drain_oauth_github_client_secret_v1 -
+
+# Signs the dashboard's session cookie; nuxt-auth-utils wants 32+ characters.
+openssl rand -base64 32 | tr -d '\n' | docker --context beacon secret create drain_session_password_v1 -
+```
+
+Swarm secrets are immutable and cannot be removed while a service uses one, so rotation
+is: create `…_v2`, bump the name in `docker-compose.prod.yml`, deploy, then
+`docker secret rm` the old one. Each rotation is an ordinary reviewable commit, and the
+container's path (`/run/secrets/postgres_password`) never changes.
+
+### Repository settings
+
+Only non-credentials, so all of them are variables and stay readable for a by-hand
+deploy:
 
 | | |
 | --- | --- |
 | `vars.DASHBOARD_ALLOWED_USERS` | comma-separated GitHub logins allowed into the dashboard (Actions reserves the `GITHUB_` prefix, so it cannot be named after the env var it feeds) |
-| `secrets.OAUTH_GITHUB_CLIENT_ID` / `secrets.OAUTH_GITHUB_CLIENT_SECRET` | the dashboard's GitHub OAuth app |
-| `secrets.SESSION_PASSWORD` | 32+ random chars for the dashboard's session cookie |
-| `secrets.POSTGRES_PASSWORD` | the database password. It is delivered as a Docker secret, but Postgres only reads it when initialising an empty volume — on the existing production volume the value **must match the role's current password** until `ALTER ROLE postgres PASSWORD '…'` is run against the live database. A mismatch fails the migration and takes beacon ingest down |
-| `secrets.DOCKER_USERNAME` / `secrets.DOCKER_PASSWORD` | Docker Hub |
+| `vars.OAUTH_GITHUB_CLIENT_ID` | the dashboard's OAuth app client id — public, it ships in the redirect URL on every sign-in |
+| `secrets.DOCKER_USERNAME` / `secrets.DOCKER_PASSWORD` | Docker Hub, for pushing the images |
 | `secrets.SSH_CERT` / `secrets.SSH_KEY` | access to the beacon host |
