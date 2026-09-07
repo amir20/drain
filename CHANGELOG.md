@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.7](https://github.com/amir20/drain/compare/v1.1.6...v1.1.7) (2026-09-07)
+
+### Performance Improvements
+
+* **dashboard:** filter the daily aggregate on its raw bucket, and stop merging what already ran in parallel ([0c2d2c9](https://github.com/amir20/drain/commit/0c2d2c9e7a9501e5d2b66fdf2ee7ca8d18b5e4f2))
+
 ## [1.1.6](https://github.com/amir20/drain/compare/v1.1.5...v1.1.6) (2026-09-07)
 
 ### Performance Improvements
