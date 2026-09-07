@@ -1,7 +1,5 @@
 """Data loading and processing utilities for retention analysis."""
 
-from typing import cast
-
 import polars as pl
 from config import DATA_PATH
 
@@ -68,7 +66,7 @@ def load_and_process_data(data_glob: str = DATA_PATH) -> pl.DataFrame:
         pl.DataFrame: Events with UserID, id_from_ip, and descriptive columns.
     """
     lazy = _scan(data_glob).filter(pl.col("Name") == "events").drop(_IDENTITY_COLUMNS, strict=False)
-    return cast(pl.DataFrame, lazy.collect())
+    return lazy.collect()
 
 
 def load_start_beacons(data_glob: str = DATA_PATH) -> pl.DataFrame:
@@ -84,7 +82,7 @@ def load_start_beacons(data_glob: str = DATA_PATH) -> pl.DataFrame:
         pl.DataFrame: Launch beacons with ``UserID`` and ``CreatedAt``.
     """
     lazy = _scan(data_glob).filter(pl.col("Name") == "start").select("UserID", "CreatedAt")
-    return cast(pl.DataFrame, lazy.collect())
+    return lazy.collect()
 
 
 def calculate_identity_quality(df: pl.DataFrame) -> dict:
