@@ -51,8 +51,11 @@ Tagging `v*` builds `amir20/drain` and `amir20/drain-dashboard` and runs
 
 ```sh
 CONFIG_VERSION=$(git rev-parse --short=12 HEAD) OAUTH_GITHUB_CLIENT_ID=... \
-  docker --context beacon stack deploy -c docker-compose.yml -c docker-compose.prod.yml data
+  docker --context beacon stack deploy --prune -c docker-compose.yml -c docker-compose.prod.yml data
 ```
+
+`--prune` removes services that are still in the stack but no longer in these files;
+without it a service deleted from compose keeps running on the node.
 
 That works by hand because no credential travels with the deploy — the three below live
 on the host as Docker secrets and the stack only names them.

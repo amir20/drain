@@ -80,9 +80,13 @@ jobs:
       # session password are Docker secrets created once on the host (README, "Deploying"),
       # and this step only names them - so the same command deploys by hand, and a
       # compromise of this workflow does not hand over the credentials themselves.
+      # --prune removes services that are in the stack but no longer in these files.
+      # Without it `stack deploy` only ever creates and updates, so deleting a service
+      # from compose leaves it running on the node, described by nothing in the repo -
+      # which is how the ofelia scheduler kept its Docker socket after being removed.
       - run: |
           export CONFIG_VERSION="${GITHUB_SHA::12}"
-          docker --context beacon stack deploy -c docker-compose.yml -c docker-compose.prod.yml data
+          docker --context beacon stack deploy --prune -c docker-compose.yml -c docker-compose.prod.yml data
         env:
           GITHUB_ALLOWED_USERS: ${{ vars.DASHBOARD_ALLOWED_USERS }}
           # Public identifier, not a credential: it ships in the redirect URL on every
