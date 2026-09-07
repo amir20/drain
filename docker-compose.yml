@@ -62,8 +62,9 @@ volumes:
   grafana-storage:
 
 # Swarm configs are immutable, so every config carries a version suffix that the
-# deploy workflow sets to the commit sha. Bumping the file content alone is not
-# enough - the name has to change for `docker stack deploy` to pick it up.
+# deploy workflow sets to the short commit sha. Bumping the file content alone is
+# not enough - the name has to change for `docker stack deploy` to pick it up.
+# Keep `<key>_<version>` under 64 characters or the daemon rejects the name.
 configs:
   postgresql_conf:
     file: ./init/01_init.sql

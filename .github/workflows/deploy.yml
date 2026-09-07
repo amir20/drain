@@ -43,6 +43,8 @@ jobs:
           context_name: "beacon"
           ssh_cert: ${{ secrets.SSH_CERT }}
           ssh_key: ${{ secrets.SSH_KEY }}
-      - run: docker --context beacon stack deploy -c docker-compose.yml -c docker-compose.prod.yml data
-        env:
-          CONFIG_VERSION: ${{ github.sha }}
+      # Swarm config names are capped at 64 characters. The longest key,
+      # grafana_dashboard_provider_<sha>, is 67 with a full SHA, so use a short one.
+      - run: |
+          export CONFIG_VERSION="${GITHUB_SHA::12}"
+          docker --context beacon stack deploy -c docker-compose.yml -c docker-compose.prod.yml data
