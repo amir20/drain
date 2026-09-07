@@ -67,6 +67,7 @@ volumes:
 # Keep `<key>_<version>` under 64 characters or the daemon rejects the name.
 configs:
   postgresql_conf:
+    name: postgresql_conf_${CONFIG_VERSION:-dev}
     file: ./init/01_init.sql
   grafana_datasource:
     name: grafana_datasource_${CONFIG_VERSION:-dev}
