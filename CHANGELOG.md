@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.1.3](https://github.com/amir20/drain/compare/v1.1.2...v1.1.3) (2026-09-07)
+
+### Features
+
+* **dashboard:** replace Grafana with a Nuxt analytics dashboard ([542d55b](https://github.com/amir20/drain/commit/542d55bdc8f1d0910bd72242155b41a337fc6cd8))
+* **stack:** schedule the refresh in TimescaleDB, deliver credentials as Docker secrets ([1c6df6b](https://github.com/amir20/drain/commit/1c6df6bca023883a25645f06755e4405fb625ffc))
+
+### Bug Fixes
+
+* **dashboard:** correctness and legibility fixes from review ([4903d17](https://github.com/amir20/drain/commit/4903d177f07bc947759b18f88a4a8ac7202254b1))
+
 ## [1.1.2](https://github.com/amir20/drain/compare/v1.1.1...v1.1.2) (2026-09-07)
 
 ### Bug Fixes
