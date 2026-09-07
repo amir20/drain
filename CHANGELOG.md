@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.8](https://github.com/amir20/drain/compare/v1.1.7...v1.1.8) (2026-09-07)
+
+### Bug Fixes
+
+* **dashboard:** raise the statement timeout above what the widest ranges cost ([ef7ed29](https://github.com/amir20/drain/commit/ef7ed2991a54b500019993594f23ed1690eaad1c))
+
 ## [1.1.7](https://github.com/amir20/drain/compare/v1.1.6...v1.1.7) (2026-09-07)
 
 ### Performance Improvements
