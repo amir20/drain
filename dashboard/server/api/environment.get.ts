@@ -10,66 +10,51 @@ export default cachedAnalytics(async (event) => {
   const s = snapshot(range)
   const state = latestState(range)
 
-  // Five statements became two, because they were five scans of two row sets.
+  // Five statements, run concurrently, rather than two that each do more.
   //
-  // Browser and OS read the same install set; auth, size and version read the same
-  // window of the per-bucket table. Every one of them parses the same JSONB, so running
-  // them separately paid for that parse three and two times over - and `drain_os` and
-  // `drain_browser` were among the statements hitting the 20s statement_timeout in
-  // production. Grouping once and pivoting in TypeScript costs one parse each.
-  const [installState, series] = await Promise.all([
-    query<{
-      browsers: { key: string; installs: number }[]
-      oses: { key: string; installs: number }[]
-    }>(
-      `WITH latest AS MATERIALIZED (${state.sql}),
-       parsed AS MATERIALIZED (
-         SELECT drain_browser(metadata) AS browser, drain_os(metadata) AS os FROM latest
-       )
-       SELECT
-         (SELECT coalesce(json_agg(a ORDER BY a.installs DESC), '[]'::json) FROM (
-            SELECT browser AS key, count(*)::int AS installs FROM parsed GROUP BY 1) a) AS browsers,
-         (SELECT coalesce(json_agg(b ORDER BY b.installs DESC), '[]'::json) FROM (
-            SELECT os AS key, count(*)::int AS installs FROM parsed GROUP BY 1) b) AS oses`,
+  // An earlier revision merged these into two - browser with OS, and auth with size and
+  // version - on the reasoning that they re-read the same rows. That was the wrong
+  // trade: the five already ran in parallel, so merging only serialised work and made
+  // the page slower. Measured on production for a 30-day window, once the filters became
+  // sargable: auth 508ms, size 1962ms, version 714ms - about 1.9s of wall clock in
+  // parallel - against 2.7s for the single combined pass; browser 1651ms and OS 1281ms
+  // against 2.2s merged.
+  //
+  // Merging is worth it where a statement does redundant work of its own, which is why
+  // the Features page keeps it: there the pass was CROSS JOINing the feature list and
+  // expanding every install sevenfold before reading a field.
+  const [browsers, oses, auth, sizes, versionSeries] = await Promise.all([
+    query<{ key: string; installs: number }>(
+      `WITH latest AS (${state.sql})
+       SELECT drain_browser(metadata) AS key, count(*)::int AS installs
+         FROM latest GROUP BY 1 ORDER BY 2 DESC`,
       state.params,
     ),
-
-    // One grouped pass over the window; the three charts are cuts of the same rows.
-    query<{ bucket: string; auth: string; size: number; version: string; installs: number }>(
-      `SELECT ${s.timeCol} AS bucket,
-              drain_auth_provider(metadata) AS auth,
-              drain_size_bucket(metadata)   AS size,
-              drain_minor_version(metadata) AS version,
-              count(*)::int AS installs
-         FROM ${s.table}
-        WHERE ${s.timeCol} BETWEEN $1 AND $2
-        GROUP BY 1, 2, 3, 4 ORDER BY 1`,
+    query<{ key: string; installs: number }>(
+      `WITH latest AS (${state.sql})
+       SELECT drain_os(metadata) AS key, count(*)::int AS installs
+         FROM latest GROUP BY 1 ORDER BY 2 DESC`,
+      state.params,
+    ),
+    query<{ bucket: string; key: string; installs: number }>(
+      `SELECT ${s.timeCol} AS bucket, drain_auth_provider(metadata) AS key, count(*)::int AS installs
+         FROM ${s.table} WHERE ${s.window()}
+        GROUP BY 1, 2 ORDER BY 1`,
+      [s.from, range.to],
+    ),
+    query<{ bucket: string; key: number; installs: number }>(
+      `SELECT ${s.timeCol} AS bucket, drain_size_bucket(metadata) AS key, count(*)::int AS installs
+         FROM ${s.table} WHERE ${s.window()}
+        GROUP BY 1, 2 ORDER BY 1`,
+      [s.from, range.to],
+    ),
+    query<{ bucket: string; version: string; installs: number }>(
+      `SELECT ${s.timeCol} AS bucket, drain_minor_version(metadata) AS version, count(*)::int AS installs
+         FROM ${s.table} WHERE ${s.window()}
+        GROUP BY 1, 2 ORDER BY 1`,
       [s.from, range.to],
     ),
   ])
-
-  const browsers = installState[0]?.browsers ?? []
-  const oses = installState[0]?.oses ?? []
-
-  /** Collapse the combined rows down to one dimension, re-adding across the others. */
-  function fold<K>(pick: (r: (typeof series)[number]) => K) {
-    const acc = new Map<string, { bucket: string; key: K; installs: number }>()
-    for (const r of series) {
-      const k = `${r.bucket}\u0000${String(pick(r))}`
-      const hit = acc.get(k)
-      if (hit) hit.installs += r.installs
-      else acc.set(k, { bucket: r.bucket, key: pick(r), installs: r.installs })
-    }
-    return [...acc.values()].sort((a, b) => a.bucket.localeCompare(b.bucket))
-  }
-
-  const auth = fold((r) => r.auth)
-  const sizes = fold((r) => r.size)
-  const versionSeries = fold((r) => r.version).map((r) => ({
-    bucket: r.bucket,
-    version: r.key,
-    installs: r.installs,
-  }))
 
   // Which versions get their own band.
   //

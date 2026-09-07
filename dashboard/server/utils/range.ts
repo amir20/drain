@@ -202,10 +202,32 @@ export function weeklyWindow(range: Range): { from: string; to: string; widened:
  * so a query only differs by the two names below. The weekly rollup is ~7x smaller and
  * is what keeps a one-year range in the same latency class as a 30-day one.
  */
-export function snapshot(range: Range): { table: string; timeCol: string; from: string } {
-  return range.bucket === 'week'
-    ? { table: 'client_weekly', timeCol: 'week', from: range.weekFrom }
-    : { table: 'client_daily', timeCol: 'day', from: range.dayFrom }
+export function snapshot(range: Range): {
+  table: string
+  timeCol: string
+  filterCol: string
+  from: string
+  /** Half-open range predicate over `filterCol`, binding $1/$2 as the given placeholders. */
+  window: (alias?: string, lo?: string, hi?: string) => string
+} {
+  const base =
+    range.bucket === 'week'
+      ? // A real table with a date column and an index on it: group and filter on the same one.
+        { table: 'client_weekly', timeCol: 'week', filterCol: 'week', from: range.weekFrom }
+      : // A view over the continuous aggregate. Group on the date, but filter on the raw
+        // timestamptz (migrations/004): `day` is `day::date`, and a cast on the indexed
+        // column costs chunk exclusion - 4058ms versus 352ms for one 30-day GROUP BY.
+        { table: 'client_daily', timeCol: 'day', filterCol: 'bucket_ts', from: range.dayFrom }
+
+  return {
+    ...base,
+    // Half-open, so `to` is included whole whether the column is a date or a timestamp,
+    // without a second cast landing back on the column.
+    window: (alias = '', lo = '$1', hi = '$2') => {
+      const col = alias ? `${alias}.${base.filterCol}` : base.filterCol
+      return `${col} >= ${lo}::date AND ${col} < (${hi}::date + 1)`
+    },
+  }
 }
 
 /**
@@ -232,13 +254,13 @@ export function latestState(range: Range): { sql: string; params: [string, strin
     sql: `WITH last AS (
             SELECT client_id, max(${s.timeCol}) AS ${s.timeCol}
               FROM ${s.table}
-             WHERE ${s.timeCol} BETWEEN $1 AND $2
+             WHERE ${s.window()}
              GROUP BY client_id
           )
           SELECT t.metadata
             FROM ${s.table} t
             JOIN last l ON l.client_id = t.client_id AND l.${s.timeCol} = t.${s.timeCol}
-           WHERE t.${s.timeCol} BETWEEN $1 AND $2`,
+           WHERE ${s.window('t')}`,
     params: [s.from, range.to],
   }
 }

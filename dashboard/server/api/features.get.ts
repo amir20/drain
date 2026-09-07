@@ -91,7 +91,7 @@ export default cachedAnalytics(async (event) => {
               count(*)::int AS installs,
               ${enabledColumns((_, k) => `drain_feature(t.metadata, '${k}')`)}
          FROM ${s.table} t
-        WHERE t.${s.timeCol} BETWEEN $1 AND $2
+        WHERE ${s.window('t')}
         GROUP BY 1 ORDER BY 1`,
       [s.from, range.to],
     ),
