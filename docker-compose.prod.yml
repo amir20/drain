@@ -12,7 +12,7 @@ services:
       - default
     volumes:
       - /data/beacon:/data
-  grafana:
+  dashboard:
     deploy:
       labels:
         traefik.enable: "true"
@@ -20,9 +20,6 @@ services:
         traefik.http.services.dashboard.loadbalancer.server.port: 3000
         traefik.http.routers.dashboard.entrypoints: websecure
         traefik.http.routers.dashboard.tls.certresolver: myresolver
-    environment:
-      - GF_SERVER_ROOT_URL=https://dashboard.dozzle.dev
-      - GF_SERVER_DOMAIN=dashboard.dozzle.dev
     networks:
       - web
       - default

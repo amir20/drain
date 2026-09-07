@@ -1,3 +1,13 @@
+> **Superseded.** These dashboards were replaced by the Nuxt app in [`../dashboard`](../dashboard),
+> and the Grafana service has been removed from the stack. The JSON is kept because the
+> SQL in it is the reference for what each panel means — the notes below on what counts
+> as an install, why cohorts come from `events` and not `start`, and which telemetry
+> never reports still apply to the new dashboard.
+>
+> Grafana itself is no longer deployed: `dashboard.dozzle.dev` now routes to the Nuxt
+> app. If you are bringing Grafana back, note that its Swarm configs and Traefik labels
+> were deleted from `docker-compose.yml` / `docker-compose.prod.yml`.
+
 # Grafana dashboards
 
 Three provisioned dashboards over the beacon database, in the **Dozzle** folder:
@@ -51,33 +61,13 @@ Dashboards are generated as JSON and mounted read-only. `allowUiUpdates` is on, 
 can tweak a panel in the UI, export the JSON (Dashboard settings → JSON Model) and paste
 it back into `grafana/dashboards/*.json`.
 
-## Deploying
+## Cleaning up after the removal
 
-The provisioning files and dashboards ship as Docker Swarm configs. Swarm configs are
-**immutable**, so each one is named with a `CONFIG_VERSION` suffix that the deploy
-workflow sets to the commit SHA. Deploying by hand needs the same:
-
-```sh
-CONFIG_VERSION=$(git rev-parse --short HEAD) \
-  docker --context beacon stack deploy -c docker-compose.yml -c docker-compose.prod.yml data
-```
-
-Superseded configs are left behind on the node; `docker config ls` and `docker config rm`
-clean them up.
-
-## Removing the old dashboard
-
-Provisioning cannot delete a dashboard that was created by hand. Once the new ones look
-right, delete the old one from the UI (Dashboard settings → Delete), or via the API:
+The Grafana service, its volume and its Swarm configs stay on the node until they are
+removed by hand:
 
 ```sh
-curl -s -u admin:$GRAFANA_PASSWORD https://dashboard.dozzle.dev/api/search?type=dash-db \
-  | jq -r '.[] | "\(.uid)\t\(.title)"'
-curl -X DELETE -u admin:$GRAFANA_PASSWORD https://dashboard.dozzle.dev/api/dashboards/uid/<uid>
-```
-
-## Local preview
-
-```sh
-docker compose up -d timescaledb grafana   # http://localhost:3000, admin / your_password
+docker --context beacon service rm data_grafana
+docker --context beacon volume rm data_grafana-storage
+docker --context beacon config ls | grep -E 'grafana|dashboard_'   # then `config rm` each
 ```

@@ -31,8 +31,37 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+  dashboard:
+    name: Build the analytics dashboard
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.repository.fork && !github.event.pull_request.head.repo.fork && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == 'amir20/drain') }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: amir20/drain-dashboard
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Login to DockerHub
+        uses: docker/login-action@v4.6.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Build and push
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: ./dashboard
+          push: true
+          # The dashboard only ever runs on the beacon host.
+          platforms: linux/amd64,linux/arm64/v8
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
   deploy:
-    needs: [build]
+    needs: [build, dashboard]
     runs-on: ubuntu-latest
     name: Deploy to server
     steps:
@@ -43,8 +72,12 @@ jobs:
           context_name: "beacon"
           ssh_cert: ${{ secrets.SSH_CERT }}
           ssh_key: ${{ secrets.SSH_KEY }}
-      # Swarm config names are capped at 64 characters. The longest key,
-      # grafana_dashboard_provider_<sha>, is 67 with a full SHA, so use a short one.
+      # Swarm config names are capped at 64 characters, so use a short SHA.
       - run: |
           export CONFIG_VERSION="${GITHUB_SHA::12}"
           docker --context beacon stack deploy -c docker-compose.yml -c docker-compose.prod.yml data
+        env:
+          GITHUB_ALLOWED_USERS: ${{ vars.GITHUB_ALLOWED_USERS }}
+          OAUTH_GITHUB_CLIENT_ID: ${{ secrets.OAUTH_GITHUB_CLIENT_ID }}
+          OAUTH_GITHUB_CLIENT_SECRET: ${{ secrets.OAUTH_GITHUB_CLIENT_SECRET }}
+          SESSION_PASSWORD: ${{ secrets.SESSION_PASSWORD }}

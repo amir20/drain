@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/amir20/drain/internal"
@@ -18,15 +19,32 @@ type PostgresWriter struct {
 	db      *sql.DB
 }
 
-func NewPostgresWriter(logger *zap.SugaredLogger, user, pass string) (*PostgresWriter, error) {
-	dsn := fmt.Sprintf("host=timescaledb user=%s password=%s dbname=drain sslmode=disable", user, pass)
-	db, err := sql.Open("postgres", dsn)
+// DSN is the connection string for the beacon database. DATABASE_URL wins when set so
+// the same binary can run migrations from a one-shot container or against a local
+// Postgres; otherwise it falls back to the in-stack service name.
+func DSN(user, pass string) string {
+	if url, ok := os.LookupEnv("DATABASE_URL"); ok && url != "" {
+		return url
+	}
+	return fmt.Sprintf("host=timescaledb user=%s password=%s dbname=drain sslmode=disable", user, pass)
+}
+
+// Connect opens the beacon database and verifies it is reachable.
+func Connect(user, pass string) (*sql.DB, error) {
+	db, err := sql.Open("postgres", DSN(user, pass))
 	if err != nil {
 		return nil, fmt.Errorf("error opening database: %w", err)
 	}
-
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("error pinging database: %w", err)
+	}
+	return db, nil
+}
+
+func NewPostgresWriter(logger *zap.SugaredLogger, user, pass string) (*PostgresWriter, error) {
+	db, err := Connect(user, pass)
+	if err != nil {
+		return nil, err
 	}
 
 	return &PostgresWriter{

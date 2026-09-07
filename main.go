@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"embed"
 	"errors"
 	"flag"
 	"net/http"
@@ -12,10 +13,17 @@ import (
 
 	"github.com/amir20/drain/internal"
 	"github.com/amir20/drain/internal/cleanup"
+	"github.com/amir20/drain/internal/migrate"
 	"github.com/amir20/drain/internal/web"
 	"github.com/amir20/drain/internal/writer"
 	"go.uber.org/zap"
 )
+
+// The production database predates these files and init/01_init.sql only runs on an
+// empty volume, so schema changes ship with the binary and are applied by -migrate.
+//
+//go:embed migrations/*.sql
+var migrations embed.FS
 
 var (
 	version = "head"
@@ -23,6 +31,7 @@ var (
 
 var dev = flag.Bool("dev", false, "enables dev mode")
 var clean = flag.Bool("clean-only", false, "only clean the data directory")
+var migrateOnly = flag.Bool("migrate", false, "apply pending database migrations and exit")
 
 func main() {
 	flag.Parse()
@@ -38,6 +47,19 @@ func main() {
 		if err := cleanup.Cleanup(sugar); err != nil {
 			sugar.Fatal(err)
 		}
+		return
+	}
+
+	if *migrateOnly {
+		db, err := writer.Connect("postgres", "password")
+		if err != nil {
+			sugar.Fatal(err)
+		}
+		defer db.Close()
+		if err := migrate.Run(db, migrations, "migrations", sugar); err != nil {
+			sugar.Fatal(err)
+		}
+		sugar.Info("Migrations up to date")
 		return
 	}
 

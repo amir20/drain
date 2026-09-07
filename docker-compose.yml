@@ -1,6 +1,10 @@
 services:
   timescaledb:
     image: timescale/timescaledb:latest-pg17
+    # Postgres allocates parallel hash joins and sorts out of /dev/shm, and Docker's 64MB
+    # default is not enough for the analytics refresh: it fails with
+    # "could not resize shared memory segment" (SQLSTATE 53100).
+    shm_size: 1gb
     configs:
       - source: postgresql_conf
         target: /docker-entrypoint-initdb.d/01_init.sql
@@ -17,28 +21,28 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-  grafana:
-    image: grafana/grafana:latest
-    volumes:
-      - grafana-storage:/var/lib/grafana
+  # One-shot. 01_init.sql only runs on an empty volume, so everything added after the
+  # first deploy arrives through the migrations embedded in the drain image.
+  migrate:
+    image: amir20/drain
+    command: ["-migrate"]
+    depends_on:
+      - timescaledb
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 10
+  dashboard:
+    image: amir20/drain-dashboard
+    depends_on:
+      - timescaledb
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=your_password
-      # Referenced as $$POSTGRES_* by the provisioned datasource.
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
-      - POSTGRES_DB=${POSTGRES_DB:-drain}
-    configs:
-      - source: grafana_datasource
-        target: /etc/grafana/provisioning/datasources/timescaledb.yaml
-      - source: grafana_dashboard_provider
-        target: /etc/grafana/provisioning/dashboards/dozzle.yaml
-      - source: dashboard_retention
-        target: /etc/grafana/dashboards/dozzle-retention.json
-      - source: dashboard_usage
-        target: /etc/grafana/dashboards/dozzle-usage.json
-      - source: dashboard_features
-        target: /etc/grafana/dashboards/dozzle-features.json
+      - NUXT_DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@timescaledb:5432/${POSTGRES_DB:-drain}
+      - NUXT_GITHUB_ALLOWED_USERS=${GITHUB_ALLOWED_USERS:-amir20}
+      - NUXT_OAUTH_GITHUB_CLIENT_ID=${OAUTH_GITHUB_CLIENT_ID:-}
+      - NUXT_OAUTH_GITHUB_CLIENT_SECRET=${OAUTH_GITHUB_CLIENT_SECRET:-}
+      - NUXT_SESSION_PASSWORD=${SESSION_PASSWORD:-}
   scheduler:
     image: mcuadros/ofelia:latest
     command: daemon --docker
@@ -49,8 +53,10 @@ services:
     command: tail -f /dev/null
     labels:
       ofelia.enabled: "true"
+      # Rebuilds the derived analytics tables the dashboard reads. Incremental: it
+      # reprocesses a trailing window rather than the whole history.
       ofelia.job-exec.refresh.schedule: "@every 1h"
-      ofelia.job-exec.refresh.command: psql "postgresql://postgres:password@timescaledb/drain" -c 'REFRESH MATERIALIZED VIEW mv_client_activations'
+      ofelia.job-exec.refresh.command: psql "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@timescaledb/${POSTGRES_DB:-drain}" -c 'CALL drain_refresh_analytics()'
     depends_on:
       - timescaledb
   beacon:
@@ -59,7 +65,6 @@ services:
       - timescaledb
 volumes:
   postgres_data:
-  grafana-storage:
 
 # Swarm configs are immutable, so every config carries a version suffix that the
 # deploy workflow sets to the short commit sha. Bumping the file content alone is
@@ -69,18 +74,3 @@ configs:
   postgresql_conf:
     name: postgresql_conf_${CONFIG_VERSION:-dev}
     file: ./init/01_init.sql
-  grafana_datasource:
-    name: grafana_datasource_${CONFIG_VERSION:-dev}
-    file: ./grafana/provisioning/datasources/timescaledb.yaml
-  grafana_dashboard_provider:
-    name: grafana_dashboard_provider_${CONFIG_VERSION:-dev}
-    file: ./grafana/provisioning/dashboards/dozzle.yaml
-  dashboard_retention:
-    name: dashboard_retention_${CONFIG_VERSION:-dev}
-    file: ./grafana/dashboards/dozzle-retention.json
-  dashboard_usage:
-    name: dashboard_usage_${CONFIG_VERSION:-dev}
-    file: ./grafana/dashboards/dozzle-usage.json
-  dashboard_features:
-    name: dashboard_features_${CONFIG_VERSION:-dev}
-    file: ./grafana/dashboards/dozzle-features.json

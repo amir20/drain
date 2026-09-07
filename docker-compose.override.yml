@@ -10,10 +10,16 @@ services:
       - "4000:4000"
     volumes:
       - .:/build
-  grafana:
+  migrate:
+    build:
+      context: .
+      target: dev
+    command: ["go", "run", ".", "-migrate", "-dev"]
+  dashboard:
+    build:
+      context: ./dashboard
     ports:
       - "3000:3000"
-networks:
-  default:
-    driver: overlay
-    attachable: true
+    env_file:
+      - path: ./dashboard/.env
+        required: false
