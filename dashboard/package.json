@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "@types/pg": "^8.23.1",
-    "typescript": "^5.9.3",
+    "typescript": "^7.0.2",
     "vue-tsc": "^2.2.12"
   }
 }
