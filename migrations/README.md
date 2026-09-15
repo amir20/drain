@@ -37,6 +37,19 @@ edited one is re-applied.
 | `001_analytics.sql` | the SQL helpers that read the beacon payload, the views and derived tables the dashboard reads, and the hourly continuous aggregate |
 | `002_refresh.sql` | `drain_refresh_analytics()`, which maintains them |
 | `003_schedule.sql` | registers that refresh on TimescaleDB's job scheduler, hourly |
+| `004_sargable_buckets.sql` | exposes each daily aggregate's raw bucket so range filters can use the index |
+| `005_storage.sql` | compresses the daily aggregates after 90 days, drops unread indexes, and re-segments `beacon` compression; adds `drain_recompress_beacon()` |
+
+## Recompressing beacon
+
+`005` changes how `beacon` is compressed, but only chunks compressed afterwards pick it up.
+Rewrite the existing ones once by hand after deploying it. It takes hours, commits after
+each chunk, and can be stopped and re-run at any point:
+
+```sh
+docker --context beacon exec -it $(docker --context beacon ps -q -f name=data_timescaledb) \
+  sh -c 'psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-drain}" -c "CALL drain_recompress_beacon()"'
+```
 
 ## The one design rule
 
