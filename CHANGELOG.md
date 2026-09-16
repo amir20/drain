@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.9](https://github.com/amir20/drain/compare/v1.1.8...v1.1.9) (2026-09-16)
+
+### Bug Fixes
+
+* **deps:** update all non-major dependencies ([674830c](https://github.com/amir20/drain/commit/674830c7f7da38c6c5049fc519eeb2b23ec44f32))
+
+### Performance Improvements
+
+* **db:** compress the daily aggregates after 90 days, drop unread indexes, and re-segment beacon ([0395b92](https://github.com/amir20/drain/commit/0395b922ac424f3d90ae4d66ad60ded9438f2d98))
+
 ## [1.1.8](https://github.com/amir20/drain/compare/v1.1.7...v1.1.8) (2026-09-07)
 
 ### Bug Fixes
