@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { baseOptions, barSeries, fmtInt, ordinalRamp } from '~/composables/useChartOptions'
+import { baseOptions, barSeries, fmtInt, fmtPct, ordinalRamp } from '~/composables/useChartOptions'
 
 definePageMeta({ middleware: 'auth' })
 useHead({ title: 'Environment · Dozzle analytics' })
@@ -129,6 +129,61 @@ const sizeOption = computed(() =>
   ]),
 )
 
+/**
+ * Fleet shape. Only installs whose Dozzle reports hostsByType are counted: older releases
+ * say nothing about host types, and treating that as "no agents" would read the upgrade
+ * curve as adoption. An install can run several kinds of host at once, so these shares
+ * are of the reporting installs and do not add up to 100%.
+ */
+const fleet = computed(() => (data.value as any)?.fleet ?? null)
+const hostTypeOption = computed(() => {
+  void version.value
+  const t = theme.value
+  const f = fleet.value
+  if (!f?.reporting) return null
+  const rows = [...f.hostTypes].reverse()
+  return {
+    ...baseOptions(t, { legend: false }),
+    grid: { left: 8, right: 72, top: 8, bottom: 4, containLabel: true },
+    xAxis: {
+      type: 'value',
+      max: 100,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: t.muted, fontSize: 11, formatter: (v: number) => `${v}%` },
+      splitLine: { lineStyle: { color: t.grid } },
+    },
+    yAxis: {
+      type: 'category',
+      data: rows.map((r: any) => r.label),
+      axisLine: { lineStyle: { color: t.axis } },
+      axisTick: { show: false },
+      axisLabel: { color: t.secondary, fontSize: 12 },
+    },
+    tooltip: {
+      ...baseOptions(t).tooltip,
+      formatter: (p: any) =>
+        `<b>${p[0].name}</b><br>${p[0].value}% of reporting installs<br><span style="opacity:.7">${fmtInt(rows[p[0].dataIndex]!.installs)} installs</span>`,
+    },
+    series: [
+      {
+        type: 'bar',
+        data: rows.map((r: any) => Number(((100 * r.installs) / f.reporting).toFixed(1))),
+        itemStyle: { color: t.series[0], borderRadius: [0, 4, 4, 0] },
+        label: { show: true, position: 'right', color: t.secondary, fontSize: 11.5, formatter: (p: any) => `${p.value}%` },
+      },
+    ],
+  }
+})
+const usersOption = computed(() =>
+  distributionOption(
+    (fleet.value?.users ?? [])
+      .filter((u: any) => u.installs > 0)
+      .map((u: any) => ({ key: `${u.bucket} user${u.bucket === '1' ? '' : 's'}`, installs: u.installs })),
+  ),
+)
+const share = (n: number | undefined, d: number | undefined) => (d ? fmtPct((100 * (n ?? 0)) / d) : '—')
+
 /** Version adoption. Everything outside the top minors is already folded to Other. */
 const versionOption = computed(() => {
   void version.value
@@ -205,6 +260,45 @@ const versionOption = computed(() => {
         :option="sizeOption"
         :loading="pending"
         :height="300"
+      />
+    </div>
+
+    <p class="section-title" style="margin-top: 24px">Fleet shape</p>
+    <p v-if="!pending && !fleet?.reporting" class="hint muted">
+      No install in this range reports host types yet. These panels fill in as installs
+      upgrade to a Dozzle that sends them.
+    </p>
+    <div v-else class="grid cols-3">
+      <StatTile
+        label="Reporting installs"
+        :value="fmtInt(fleet?.reporting)"
+        hint="send host types"
+      />
+      <StatTile
+        label="Agents unreachable"
+        :value="share(fleet?.agentsDown, fleet?.withAgents)"
+        hint="of installs with agents"
+      />
+      <StatTile
+        label="Shared by 2+ users"
+        :value="share(fleet?.simpleReporting - (fleet?.users?.[0]?.installs ?? 0), fleet?.simpleReporting)"
+        hint="of installs with simple auth"
+      />
+    </div>
+    <div v-if="fleet?.reporting" class="grid cols-2" style="margin-top: 16px">
+      <ChartCard
+        title="Hosts by type"
+        hint="Share of reporting installs connected to at least one host of each kind. An install can have several kinds, so these do not add up to 100%."
+        :option="hostTypeOption"
+        :loading="pending"
+        :height="240"
+      />
+      <ChartCard
+        title="Users per install"
+        hint="Accounts in users.yml, for installs on simple auth. Bucketed by Dozzle before it is sent."
+        :option="usersOption"
+        :loading="pending"
+        :height="240"
       />
     </div>
 

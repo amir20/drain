@@ -87,8 +87,10 @@ const overTimeOption = computed(() => {
       data: (series.get(f.key) ?? []).map((r: any) => [r.bucket, pct(r.enabled, r.installs)]),
       showSymbol: false,
       symbolSize: 8,
-      lineStyle: { width: 2, color: t.series[i] },
-      itemStyle: { color: t.series[i] },
+      // The palette has eight hues and the list is longer. Past the eighth a line reuses
+      // a hue dashed, so no two series are drawn identically.
+      lineStyle: { width: 2, color: t.series[i % t.series.length], type: i < t.series.length ? 'solid' : 'dashed' },
+      itemStyle: { color: t.series[i % t.series.length] },
       emphasis: { focus: 'series' },
     })),
   }
@@ -130,6 +132,14 @@ const histogramOption = computed(() => {
   }
 })
 
+/** First Dozzle release that reports the newer features on every beacon, if known. */
+const sinceOf = (key: string) =>
+  ((data.value as any)?.features ?? []).find((f: any) => f.key === key)?.since ?? null
+const sinceVersion = computed<string | null>(() => sinceOf('hasShell'))
+/** Same, for the install facts added after that (Cloud link, alert rules, ...). */
+const factsSinceVersion = computed<string | null>(() => sinceOf('cloudLinked'))
+const configurableCount = computed<number | null>(() => (data.value as any)?.maxFeatureCount ?? null)
+
 const sizeRows = computed(() => {
   const feats = data.value?.features ?? []
   const bySize = new Map<number, Map<string, { enabled: number; installs: number }>>()
@@ -161,7 +171,7 @@ const sizeRows = computed(() => {
       />
       <ChartCard
         title="Features per install"
-        hint="How many of the six configurable features each install has on. A tall bar at 0–1 means most people never move past the defaults."
+        :hint="`How many of the ${configurableCount ? configurableCount + ' ' : ''}configurable features each install has on. A tall bar at 0–1 means most people never move past the defaults.`"
         :option="histogramOption"
         :loading="pending"
         :height="300"
@@ -205,10 +215,12 @@ const sizeRows = computed(() => {
         </table>
       </div>
       <p class="hint muted">
-        hasShell, remoteAgents, remoteClients and filterLength are in the beacon payload
-        but always report zero, and mode/subCommand are always empty — they are left off
-        rather than drawn as flat zero lines. If those features shipped, the beacon is not
-        reporting them.
+        Shell, agents and remote sockets were only sent on Dozzle's start beacon until
+        <template v-if="sinceVersion">{{ sinceVersion }}</template><template v-else>a recent release</template>,
+        so installs older than that still count as off. Cloud link, alert rules, self-update,
+        private certificates, labels and multi-user are only reported from
+        <template v-if="factsSinceVersion">{{ factsSinceVersion }}</template><template v-else>a later release</template>.
+        Read all of those columns as a floor that rises as the base upgrades.
       </p>
     </section>
   </div>

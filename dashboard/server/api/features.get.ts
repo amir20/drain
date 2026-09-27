@@ -6,14 +6,33 @@
  * generated from that list, so the queries still do not know how many features there
  * are - they are just built rather than written out.
  *
- * `drain_feature(metadata, key)` (see migrations/001) resolves a key against the beacon
- * payload. A plain boolean field needs nothing but its name here; the two that are not
- * plain booleans - `auth` and `multiClient` - are named in that function.
+ * `drain_feature(metadata, key)` (see migrations/001 and 006) resolves a key against the
+ * beacon payload. A plain boolean field needs nothing but its name here; the ones that
+ * are not plain booleans are named in that function: `auth` (a provider other than
+ * none), `multiClient` (more than one browser), the three counts `agents`,
+ * `uiAgents` and `remoteSockets` (more than zero), and from migrations/007 `alertRules`
+ * and `labels` (any value in the map), `autoUpdate` (not off), `privateAgents` (more than
+ * zero) and `multiUser` (a users bucket above one).
  *
- * hasShell, remoteAgents, remoteClients and filterLength are in the payload but always
- * report zero/false, and mode/subCommand are effectively always empty. They are left off
- * rather than drawn as flat zero lines.
+ * hasShell, remoteAgents, remoteClients and fileAgents used to read as zero here. They
+ * were never zero: Dozzle only sent them on its `start` beacon, and every query below
+ * reads the per-view `events` beacon. Dozzle now puts the same install facts on both, so
+ * these four are only meaningful from the release that shipped that change. Installs
+ * on anything older still report them as off, so read their lines as a floor that
+ * climbs as the base upgrades, not as adoption. mode and subCommand stay off the list:
+ * they describe how the process was started, not a feature someone turned on.
  */
+
+// TODO: set to the first Dozzle release whose `events` beacon carries remoteAgents,
+// remoteClients, fileAgents and hasShell (e.g. 'v11.2.0'). While null the page just
+// omits the "since" note.
+const EVENTS_BEACON_SINCE: string | null = null
+
+// TODO: set to the first Dozzle release whose beacons carry cloudLinked, alertRules,
+// autoUpdate, privateAgents, labels and users. Older installs never send them, so like
+// the four above they read as a floor that climbs as the base upgrades.
+const INSTALL_FACTS_SINCE: string | null = null
+
 export const FEATURES = [
   { key: 'hasActions', label: 'Container actions', short: 'Actions' },
   { key: 'auth', label: 'Authentication', short: 'Auth' },
@@ -22,6 +41,16 @@ export const FEATURES = [
   { key: 'hasCustomBase', label: 'Custom base path', short: 'Base path' },
   { key: 'isSwarmMode', label: 'Swarm mode', short: 'Swarm' },
   { key: 'multiClient', label: 'Multiple browsers', short: 'Multi-browser' },
+  { key: 'hasShell', label: 'Shell', short: 'Shell', since: EVENTS_BEACON_SINCE },
+  { key: 'agents', label: 'Remote agents', short: 'Agents', since: EVENTS_BEACON_SINCE },
+  { key: 'uiAgents', label: 'Agents added from UI', short: 'UI agents', since: EVENTS_BEACON_SINCE },
+  { key: 'remoteSockets', label: 'Remote Docker sockets', short: 'Sockets', since: EVENTS_BEACON_SINCE },
+  { key: 'cloudLinked', label: 'Linked to Dozzle Cloud', short: 'Cloud', since: INSTALL_FACTS_SINCE },
+  { key: 'alertRules', label: 'Alert rules', short: 'Alerts', since: INSTALL_FACTS_SINCE },
+  { key: 'autoUpdate', label: 'Self-update', short: 'Auto-update', since: INSTALL_FACTS_SINCE },
+  { key: 'privateAgents', label: 'Private agent certificate', short: 'Private cert', since: INSTALL_FACTS_SINCE },
+  { key: 'labels', label: 'dev.dozzle.* labels', short: 'Labels', since: INSTALL_FACTS_SINCE },
+  { key: 'multiUser', label: 'More than one user', short: 'Multi-user', since: INSTALL_FACTS_SINCE },
 ] as const
 
 /**

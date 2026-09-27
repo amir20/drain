@@ -6,51 +6,16 @@ import (
 	"os"
 	"time"
 
-	dozzle "github.com/amir20/dozzle/types"
 	"github.com/amir20/drain/internal"
 	"go.uber.org/zap"
 )
 
+// maxBeaconBytes is far above any real beacon, which is a few hundred bytes.
+const maxBeaconBytes = 64 << 10
+
 func NewHTTPServer(channel chan<- internal.Event, logger *zap.SugaredLogger) *http.Server {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/event", func(w http.ResponseWriter, r *http.Request) {
-		var beaconEvent dozzle.BeaconEvent
-		err := json.NewDecoder(r.Body).Decode(&beaconEvent)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		row := internal.Event{
-			Name:              beaconEvent.Name,
-			CreatedAt:         time.Now(),
-			Version:           beaconEvent.Version,
-			Browser:           beaconEvent.Browser,
-			AuthProvider:      beaconEvent.AuthProvider,
-			FilterLength:      beaconEvent.FilterLength,
-			Clients:           beaconEvent.Clients,
-			HasCustomAddress:  beaconEvent.HasCustomAddress,
-			HasCustomBase:     beaconEvent.HasCustomBase,
-			HasHostname:       beaconEvent.HasHostname,
-			HasActions:        beaconEvent.HasActions,
-			HasShell:          beaconEvent.HasShell,
-			RunningContainers: beaconEvent.RunningContainers,
-			IsSwarmMode:       beaconEvent.IsSwarmMode,
-			ServerVersion:     beaconEvent.ServerVersion,
-			ServerID:          beaconEvent.ServerID,
-			Mode:              beaconEvent.Mode,
-			RemoteAgents:      beaconEvent.RemoteAgents,
-			RemoteClients:     beaconEvent.RemoteClients,
-			SubCommand:        beaconEvent.SubCommand,
-			RemoteIP:          r.Header.Get("X-Forwarded-For"),
-		}
-
-		logger.Debugf("Received event: %+v", row)
-
-		channel <- row
-
-		w.WriteHeader(http.StatusCreated)
-	})
+	mux.HandleFunc("/event", eventHandler(channel, logger))
 
 	addr, exists := os.LookupEnv("DRAIN_ADDR")
 	if !exists {
@@ -59,5 +24,33 @@ func NewHTTPServer(channel chan<- internal.Event, logger *zap.SugaredLogger) *ht
 	return &http.Server{
 		Addr:    addr,
 		Handler: mux,
+	}
+}
+
+// eventHandler decodes a beacon into the named fields and also keeps the raw body, so
+// a field a newer Dozzle sends lands in the metadata JSONB without drain knowing it.
+func eventHandler(channel chan<- internal.Event, logger *zap.SugaredLogger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var raw json.RawMessage
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBeaconBytes)).Decode(&raw); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		var row internal.Event
+		if err := json.Unmarshal(raw, &row); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		// Server-side fields are never taken from the client.
+		row.CreatedAt = time.Now()
+		row.RemoteIP = r.Header.Get("X-Forwarded-For")
+		row.Raw = raw
+
+		logger.Debugf("Received event: %+v", row)
+
+		channel <- row
+
+		w.WriteHeader(http.StatusCreated)
 	}
 }

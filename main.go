@@ -6,13 +6,9 @@ import (
 	"errors"
 	"flag"
 	"net/http"
-	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
-	"github.com/amir20/drain/internal"
-	"github.com/amir20/drain/internal/cleanup"
 	"github.com/amir20/drain/internal/migrate"
 	"github.com/amir20/drain/internal/web"
 	"github.com/amir20/drain/internal/writer"
@@ -30,7 +26,6 @@ var (
 )
 
 var dev = flag.Bool("dev", false, "enables dev mode")
-var clean = flag.Bool("clean-only", false, "only clean the data directory")
 var migrateOnly = flag.Bool("migrate", false, "apply pending database migrations and exit")
 
 func main() {
@@ -41,14 +36,6 @@ func main() {
 	}
 	defer logger.Sync()
 	sugar := logger.Sugar()
-
-	if *clean {
-		sugar.Info("Cleaning data directory")
-		if err := cleanup.Cleanup(sugar); err != nil {
-			sugar.Fatal(err)
-		}
-		return
-	}
 
 	if *migrateOnly {
 		db, err := writer.Connect("postgres", "password")
@@ -65,33 +52,12 @@ func main() {
 
 	sugar.Infof("Starting drain %s", version)
 
-	if _, err := os.Stat("./data"); os.IsNotExist(err) {
-		sugar.Info("Creating data directory")
-		if err := os.Mkdir("./data", 0755); err != nil {
-			sugar.Fatal(err)
-		}
-	}
-
-	daily := time.Tick(24 * time.Hour)
-	go func() {
-		sugar.Infof("Starting cleanup routine")
-		for day := range daily {
-			sugar.Infof("Cleaning data directory at %s", day)
-			if err := cleanup.Cleanup(sugar); err != nil {
-				sugar.Error(err)
-			}
-		}
-	}()
-
 	pgWriter, err := writer.NewPostgresWriter(sugar, "postgres", "password")
 	if err != nil {
 		sugar.Fatalf("failed to create writer: %w", err)
 	}
 
-	parquetWriter := writer.NewParquetWriter(sugar)
-
-	events := sendToAllChannels(pgWriter.Start(), parquetWriter.Start())
-	srv := web.NewHTTPServer(events, sugar)
+	srv := web.NewHTTPServer(pgWriter.Start(), sugar)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -108,17 +74,4 @@ func main() {
 		sugar.Fatalf("server shutdown returned err: %w", err)
 	}
 	pgWriter.Stop()
-	parquetWriter.Stop()
-}
-
-func sendToAllChannels(channels ...chan internal.Event) chan internal.Event {
-	out := make(chan internal.Event)
-	go func() {
-		for event := range out {
-			for _, channel := range channels {
-				channel <- event
-			}
-		}
-	}()
-	return out
 }

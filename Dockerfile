@@ -17,15 +17,12 @@ COPY . .
 COPY internal ./internal
 COPY main.go ./
 
-RUN mkdir /data
-
 ARG TAG=dev
 RUN GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -ldflags "-s -w -X main.version=$TAG" -o drain
 
 FROM scratch
 
 ENV PATH=/bin
-COPY --from=builder /data /data
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder /build/drain /drain
 

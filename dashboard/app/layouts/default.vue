@@ -21,6 +21,7 @@ async function signOut() {
         <NuxtLink :to="{ path: '/engagement', query: route.query }">Engagement</NuxtLink>
         <NuxtLink :to="{ path: '/features', query: route.query }">Features</NuxtLink>
         <NuxtLink :to="{ path: '/environment', query: route.query }">Environment</NuxtLink>
+        <NuxtLink :to="{ path: '/usage', query: route.query }">Usage</NuxtLink>
       </nav>
       <span class="spacer" />
       <RangePicker />

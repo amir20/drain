@@ -3,23 +3,22 @@
 The beacon endpoint and analytics stack behind [Dozzle](https://github.com/amir20/dozzle).
 
 Dozzle installs POST a small JSON payload to `b.dozzle.dev/event`; `drain` receives it,
-writes it to TimescaleDB and to Parquet, and a Nuxt dashboard at `dashboard.dozzle.dev`
-reads the aggregates back out.
+writes it to TimescaleDB, and a Nuxt dashboard at `dashboard.dozzle.dev` reads the
+aggregates back out.
 
 ```
 Dozzle install ──POST /event──▶ drain (Go) ──▶ TimescaleDB ──▶ dashboard (Nuxt + ECharts)
-                                     └────────▶ Parquet files on disk
 ```
 
 ## Layout
 
 | Path | |
 | --- | --- |
-| `main.go`, `internal/` | the Go beacon receiver, Postgres/Parquet writers, and the migration runner |
+| `main.go`, `internal/` | the Go beacon receiver, the Postgres writer, and the migration runner |
 | `init/01_init.sql` | first-boot schema. Only runs on an empty Postgres volume |
 | `migrations/` | everything added after the first deploy, applied by `drain -migrate` |
 | `dashboard/` | the Nuxt analytics dashboard |
-| `notebooks/` | ad-hoc Polars analysis over the Parquet files |
+| `notebooks/` | ad-hoc Polars analysis over the Parquet archive. drain stopped writing Parquet, so the archive no longer grows |
 | `grafana/` | the superseded Grafana dashboards, kept as a reference for the SQL |
 
 ## Running locally
