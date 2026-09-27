@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/amir20/drain/internal"
-	"github.com/amir20/drain/internal/ga"
 	"github.com/parquet-go/parquet-go"
 	"go.uber.org/zap"
 )
@@ -61,9 +60,6 @@ func (p *ParquetWriter) Start() chan internal.Event {
 					if ok {
 						i++
 						writer.Write([]internal.Event{row})
-						if row.Name != "" {
-							go ga.SendEvent(row, row.Name, p.logger)
-						}
 					} else {
 						closed = true
 						break loop
