@@ -39,6 +39,7 @@ edited one is re-applied.
 | `003_schedule.sql` | registers that refresh on TimescaleDB's job scheduler, hourly |
 | `004_sargable_buckets.sql` | exposes each daily aggregate's raw bucket so range filters can use the index |
 | `005_storage.sql` | compresses the daily aggregates after 90 days, drops unread indexes, and re-segments `beacon` compression; adds `drain_recompress_beacon()` |
+| `006_agent_features.sql` | adds the count-based features (`agents`, `uiAgents`, `remoteSockets`) to `drain_feature()` |
 
 ## Recompressing beacon
 

@@ -2,7 +2,6 @@ package writer
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -85,7 +84,7 @@ func NewPostgresWriter(logger *zap.SugaredLogger, user, pass string) (*PostgresW
 func (p *PostgresWriter) Start() chan internal.Event {
 	p.wg.Go(func() {
 		for event := range p.channel {
-			jsonText, err := json.Marshal(event)
+			jsonText, err := event.Metadata()
 			if err != nil {
 				p.logger.Errorf("failed to marshal event: %v", err)
 				continue
