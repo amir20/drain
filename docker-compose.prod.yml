@@ -19,8 +19,6 @@ services:
     networks:
       - web
       - default
-    volumes:
-      - /data/beacon:/data
   migrate:
     environment:
       - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password

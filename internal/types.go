@@ -5,10 +5,10 @@ import (
 	"time"
 )
 
-// Event is one beacon from a Dozzle install. The named fields are the ones the
-// Parquet files and Google Analytics read, so they have a fixed schema. Raw keeps the
-// whole payload as it arrived, so a field Dozzle adds later still reaches the
-// metadata JSONB without a change here.
+// Event is one beacon from a Dozzle install. The named fields are the ones drain
+// itself needs (the row's name, time and client id). Raw keeps the whole payload as
+// it arrived, so a field Dozzle adds later still reaches the metadata JSONB without
+// a change here.
 type Event struct {
 	Name              string    `json:"name"`
 	CreatedAt         time.Time `json:"createdAt"`
@@ -32,11 +32,10 @@ type Event struct {
 	RemoteClients     int       `json:"remoteClients"`
 	SubCommand        string    `json:"subCommand"`
 	// FileAgents counts agents added from the Dozzle UI (saved in /data/dozzle.yml),
-	// as opposed to DOZZLE_REMOTE_AGENT. Kept out of Parquet so every file keeps one
-	// schema and a glob scan over old and new files still works.
-	FileAgents int `json:"fileAgents" parquet:"-"`
+	// as opposed to DOZZLE_REMOTE_AGENT.
+	FileAgents int `json:"fileAgents"`
 
-	Raw json.RawMessage `json:"-" parquet:"-"`
+	Raw json.RawMessage `json:"-"`
 }
 
 // Metadata is the JSONB stored with the beacon: every field of the payload as sent,
