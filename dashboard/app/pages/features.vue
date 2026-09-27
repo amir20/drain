@@ -133,9 +133,11 @@ const histogramOption = computed(() => {
 })
 
 /** First Dozzle release that reports the newer features on every beacon, if known. */
-const sinceVersion = computed<string | null>(
-  () => ((data.value as any)?.features ?? []).find((f: any) => f.since)?.since ?? null,
-)
+const sinceOf = (key: string) =>
+  ((data.value as any)?.features ?? []).find((f: any) => f.key === key)?.since ?? null
+const sinceVersion = computed<string | null>(() => sinceOf('hasShell'))
+/** Same, for the install facts added after that (Cloud link, alert rules, ...). */
+const factsSinceVersion = computed<string | null>(() => sinceOf('cloudLinked'))
 const configurableCount = computed<number | null>(() => (data.value as any)?.maxFeatureCount ?? null)
 
 const sizeRows = computed(() => {
@@ -215,8 +217,10 @@ const sizeRows = computed(() => {
       <p class="hint muted">
         Shell, agents and remote sockets were only sent on Dozzle's start beacon until
         <template v-if="sinceVersion">{{ sinceVersion }}</template><template v-else>a recent release</template>,
-        so installs older than that still count as off. Read those columns as a floor that
-        rises as the base upgrades.
+        so installs older than that still count as off. Cloud link, alert rules, self-update,
+        private certificates, labels and multi-user are only reported from
+        <template v-if="factsSinceVersion">{{ factsSinceVersion }}</template><template v-else>a later release</template>.
+        Read all of those columns as a floor that rises as the base upgrades.
       </p>
     </section>
   </div>

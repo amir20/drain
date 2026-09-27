@@ -5,6 +5,17 @@
  */
 const TOP_VERSIONS = 5
 
+/** hostsByType keys, in the order the chart draws them. */
+export const HOST_TYPES = [
+  { key: 'local', label: 'Local socket' },
+  { key: 'agent', label: 'Agent' },
+  { key: 'remote', label: 'Remote socket' },
+  { key: 'swarm', label: 'Swarm node' },
+  { key: 'k8s', label: 'Kubernetes' },
+] as const
+
+export const USER_BUCKETS = ['1', '2-5', '6-20', '21+'] as const
+
 export default cachedAnalytics(async (event) => {
   const range = resolveRange(event)
   const s = snapshot(range)
@@ -23,7 +34,7 @@ export default cachedAnalytics(async (event) => {
   // Merging is worth it where a statement does redundant work of its own, which is why
   // the Features page keeps it: there the pass was CROSS JOINing the feature list and
   // expanding every install sevenfold before reading a field.
-  const [browsers, oses, auth, sizes, versionSeries] = await Promise.all([
+  const [browsers, oses, auth, sizes, versionSeries, fleetRows] = await Promise.all([
     query<{ key: string; installs: number }>(
       `WITH latest AS (${state.sql})
        SELECT drain_browser(metadata) AS key, count(*)::int AS installs
@@ -54,7 +65,38 @@ export default cachedAnalytics(async (event) => {
         GROUP BY 1, 2 ORDER BY 1`,
       [s.from, range.to],
     ),
+    // Fleet shape and sharing, from each install's latest state. Only installs whose
+    // Dozzle sends hostsByType / users are in the denominators: older releases do not
+    // report them at all, and counting them as "no agents" would read the upgrade curve
+    // as adoption.
+    query<{
+      reporting: number
+      with_agents: number
+      agents_down: number
+      simple_reporting: number
+      users: { bucket: string; installs: number }[]
+      [k: string]: unknown
+    }>(
+      `WITH latest AS MATERIALIZED (${state.sql})
+       SELECT
+         count(*) FILTER (WHERE metadata ? 'hostsByType')::int AS reporting,
+         ${HOST_TYPES.map(
+           (h) =>
+             `count(*) FILTER (WHERE drain_map_int(metadata, 'hostsByType', '${h.key}') > 0)::int AS "t_${h.key}"`,
+         ).join(',\n         ')},
+         count(*) FILTER (WHERE drain_map_int(metadata, 'hostsByType', 'agent') > 0)::int AS with_agents,
+         count(*) FILTER (WHERE drain_map_int(metadata, 'hostsByType', 'agent') > 0
+                            AND COALESCE((metadata ->> 'agentsDown')::int, 0) > 0)::int AS agents_down,
+         count(*) FILTER (WHERE metadata ? 'users')::int AS simple_reporting,
+         (SELECT coalesce(json_agg(u), '[]'::json) FROM (
+            SELECT metadata ->> 'users' AS bucket, count(*)::int AS installs
+              FROM latest WHERE metadata ? 'users' GROUP BY 1) u) AS users
+       FROM latest`,
+      state.params,
+    ),
   ])
+
+  const fleet = fleetRows[0]
 
   // Which versions get their own band.
   //
@@ -91,6 +133,21 @@ export default cachedAnalytics(async (event) => {
 
   return {
     range,
+    fleet: {
+      reporting: fleet?.reporting ?? 0,
+      hostTypes: HOST_TYPES.map((h) => ({
+        key: h.key,
+        label: h.label,
+        installs: Number(fleet?.[`t_${h.key}`] ?? 0),
+      })),
+      withAgents: fleet?.with_agents ?? 0,
+      agentsDown: fleet?.agents_down ?? 0,
+      simpleReporting: fleet?.simple_reporting ?? 0,
+      users: USER_BUCKETS.map((bucket) => ({
+        bucket,
+        installs: (fleet?.users ?? []).find((u) => u.bucket === bucket)?.installs ?? 0,
+      })),
+    },
     browsers,
     oses,
     auth,
