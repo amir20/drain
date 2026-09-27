@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.0](https://github.com/amir20/drain/compare/v1.1.9...v1.2.0) (2026-09-27)
+
+### Features
+
+* **dashboard:** a Usage page for the daily usage beacon, and fleet shape ([2324b57](https://github.com/amir20/drain/commit/2324b5733ec7506c4757716a79bf452930307158))
+* keep every beacon field, and chart agents and shell ([bb953f4](https://github.com/amir20/drain/commit/bb953f401a6f39bf28bed132f305d489e1ddf3a8)), references [amir20/dozzle#5258](https://github.com/amir20/dozzle/issues/5258)
+
+### Bug Fixes
+
+* **deps:** update all non-major dependencies ([#149](https://github.com/amir20/drain/issues/149)) ([905b56f](https://github.com/amir20/drain/commit/905b56f205c02e74195e708bd0d899d20520b963))
+* **privacy:** stop forwarding beacons to Google Analytics ([ba85c9f](https://github.com/amir20/drain/commit/ba85c9f68430c39421dedb2b67891e06ad29f5c6))
+
 ## [1.1.9](https://github.com/amir20/drain/compare/v1.1.8...v1.1.9) (2026-09-16)
 
 ### Bug Fixes
