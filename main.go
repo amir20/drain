@@ -57,7 +57,15 @@ func main() {
 		sugar.Fatalf("failed to create writer: %w", err)
 	}
 
-	srv := web.NewHTTPServer(pgWriter.Start(), sugar)
+	ips, err := web.NewIPHasherFromEnv()
+	if err != nil {
+		sugar.Fatal(err)
+	}
+	if !ips.Keyed() {
+		sugar.Warn("DRAIN_IP_HASH_KEY is not set: client IPs are stored as plain SHA-256, which is reversible by brute force")
+	}
+
+	srv := web.NewHTTPServer(pgWriter.Start(), ips, sugar)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

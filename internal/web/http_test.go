@@ -17,7 +17,7 @@ func post(t *testing.T, body string) (*httptest.ResponseRecorder, chan internal.
 	req := httptest.NewRequest(http.MethodPost, "/event", strings.NewReader(body))
 	req.Header.Set("X-Forwarded-For", "203.0.113.7")
 	rec := httptest.NewRecorder()
-	eventHandler(channel, zap.NewNop().Sugar())(rec, req)
+	eventHandler(channel, &IPHasher{key: []byte("test")}, zap.NewNop().Sugar())(rec, req)
 	return rec, channel
 }
 
@@ -55,8 +55,13 @@ func TestEventHandlerKeepsUnknownFields(t *testing.T) {
 		t.Error("createdAt missing")
 	}
 	// Server-side fields come from drain, never the client.
-	if meta["remoteIP"] != "203.0.113.7" {
-		t.Errorf("remoteIP = %v, want the forwarded address", meta["remoteIP"])
+	// and the address is stored only as its hash.
+	want := (&IPHasher{key: []byte("test")}).Hash("203.0.113.7")
+	if meta["remoteIP"] != want {
+		t.Errorf("remoteIP = %v, want the hashed forwarded address %s", meta["remoteIP"], want)
+	}
+	if strings.Contains(string(data), "203.0.113.7") || strings.Contains(string(data), "1.2.3.4") {
+		t.Errorf("raw IP leaked into metadata: %s", data)
 	}
 	if _, ok := meta["Raw"]; ok {
 		t.Error("raw payload leaked into metadata as its own key")
