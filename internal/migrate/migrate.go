@@ -13,7 +13,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/fs"
-	"sort"
+	"strings"
 
 	"go.uber.org/zap"
 )
@@ -36,13 +36,13 @@ func Run(db *sql.DB, fsys fs.FS, dir string, logger *zap.SugaredLogger) error {
 		return fmt.Errorf("reading %s: %w", dir, err)
 	}
 
+	// fs.ReadDir returns entries sorted by filename, which is the apply order.
 	names := make([]string, 0, len(entries))
 	for _, e := range entries {
-		if !e.IsDir() && len(e.Name()) > 4 && e.Name()[len(e.Name())-4:] == ".sql" {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
 			names = append(names, e.Name())
 		}
 	}
-	sort.Strings(names)
 
 	for _, name := range names {
 		body, err := fs.ReadFile(fsys, dir+"/"+name)

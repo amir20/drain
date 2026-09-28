@@ -3,6 +3,7 @@ package writer
 import (
 	"database/sql"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -48,7 +49,17 @@ func DSN(user, pass string) (string, error) {
 	} else if p := os.Getenv("POSTGRES_PASSWORD"); p != "" {
 		pass = p
 	}
-	return fmt.Sprintf("host=timescaledb user=%s password=%s dbname=drain sslmode=disable", user, pass), nil
+	// A URL rather than key=value: lib/pq ends an unquoted value at whitespace, so a
+	// password holding a space or a quote would otherwise be cut short. url.UserPassword
+	// escapes anything, matching the dashboard's encodeURIComponent.
+	u := url.URL{
+		Scheme:   "postgres",
+		User:     url.UserPassword(user, pass),
+		Host:     "timescaledb",
+		Path:     "/drain",
+		RawQuery: "sslmode=disable",
+	}
+	return u.String(), nil
 }
 
 // Connect opens the beacon database and verifies it is reachable.

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/amir20/drain/internal/migrate"
 	"github.com/amir20/drain/internal/web"
@@ -54,7 +55,7 @@ func main() {
 
 	pgWriter, err := writer.NewPostgresWriter(sugar, "postgres", "password")
 	if err != nil {
-		sugar.Fatalf("failed to create writer: %w", err)
+		sugar.Fatalf("failed to create writer: %v", err)
 	}
 
 	ips, err := web.NewIPHasherFromEnv()
@@ -73,13 +74,17 @@ func main() {
 	go func() {
 		sugar.Infof("Listening on %s", srv.Addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			sugar.Fatalf("server listen returned err: %w", err)
+			sugar.Fatalf("server listen returned err: %v", err)
 		}
 	}()
 	<-ctx.Done()
 
-	if err := srv.Shutdown(context.TODO()); err != nil {
-		sugar.Fatalf("server shutdown returned err: %w", err)
+	// Bounded so a stuck handler cannot hold the container past Swarm's own stop timeout;
+	// pgWriter.Stop still runs and flushes whatever was accepted.
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		sugar.Errorf("server shutdown returned err: %v", err)
 	}
 	pgWriter.Stop()
 }
