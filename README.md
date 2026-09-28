@@ -79,6 +79,12 @@ printf '%s' 'the-oauth-client-secret' | docker --context beacon secret create dr
 openssl rand -base64 32 | tr -d '\n' | docker --context beacon secret create drain_session_password_v1 -
 ```
 
+Client IPs are never stored raw: beacon writes `metadata.remoteIP` as HMAC-SHA256 of the
+first `X-Forwarded-For` entry, keyed by `DRAIN_IP_HASH_KEY_FILE` (or `DRAIN_IP_HASH_KEY`).
+Without a key it falls back to plain SHA-256 and logs a warning, since the IPv4 space is
+small enough to brute-force. Changing the key changes every token, so IP-derived
+identities in the notebooks restart from that point.
+
 Swarm secrets are immutable and cannot be removed while a service uses one, so rotation
 is: create `…_v2`, bump the name in `docker-compose.prod.yml`, deploy, then
 `docker secret rm` the old one. Each rotation is an ordinary reviewable commit, and the
