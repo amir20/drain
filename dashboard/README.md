@@ -77,9 +77,8 @@ mirroring the payload.
 range lives in the URL, so any view is linkable.
 
 Granularity is derived from the window rather than chosen: up to 2 days is an hour axis,
-up to 31 days a day axis, and anything longer a week axis reading the weekly snapshot. A
-`bucket` query parameter can coarsen that but never refine it. Weekly buckets past a month
-are both the better read (13 points for a quarter, not 90) and ~7x less data, which is
+up to 31 days a day axis, and anything longer a week axis reading the weekly snapshot.
+Weekly buckets past a month are both the better read (13 points for a quarter, not 90) and ~7x less data, which is
 what keeps a one-year range in the same latency class as a 30-day one.
 
 ## Access

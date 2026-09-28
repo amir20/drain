@@ -78,7 +78,6 @@ function startOfWeek(d: Date): Date {
 /**
  * Granularity is derived from the window, not chosen by the caller: an hour axis over a
  * year is 8760 points nobody can read, and a week axis over one day is a single bar.
- * `bucket` can still be forced for the odd panel that wants a coarser view.
  *
  * The day/week cut sits at a month for two reasons that agree: 90 daily points is a
  * noisier read of a quarter than 13 weekly ones, and the weekly snapshot is ~7x smaller
@@ -94,7 +93,6 @@ function bucketFor(days: number): Bucket {
 export function resolveRange(event: H3Event): Range {
   const q = getQuery(event)
   const today = new Date(`${iso(new Date())}T00:00:00Z`)
-
 
   let from: Date
   let to: Date
@@ -128,18 +126,10 @@ export function resolveRange(event: H3Event): Range {
   }
 
   const days = Math.round((to.getTime() - from.getTime()) / DAY_MS) + 1
-  // The override may only coarsen. Letting it go finer would route a multi-year range at
-  // `bucket=day` onto the daily snapshot and turn one request into several full scans;
-  // there is no panel that wants that, and the derived granularity is already the right
-  // one for the window.
-  const auto = bucketFor(days)
-  const rank: Record<Bucket, number> = { hour: 0, day: 1, week: 2 }
-  const forced = q.bucket ? String(q.bucket) : undefined
-  if (forced && !(forced in rank)) {
-    throw createError({ statusCode: 400, statusMessage: 'bucket must be hour, day or week' })
-  }
-  const bucket: Bucket =
-    forced && rank[forced as Bucket] >= rank[auto] ? (forced as Bucket) : auto
+  // Derived only, never taken from the query: the response cache keys on range, from and
+  // to (utils/cache.ts), so anything else that changed the answer would be served the
+  // wrong cached copy.
+  const bucket = bucketFor(days)
 
   const now = new Date()
   const hourTo = to.getTime() === today.getTime() ? now : new Date(to.getTime() + DAY_MS)

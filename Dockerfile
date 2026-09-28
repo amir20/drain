@@ -14,11 +14,12 @@ CMD ["air"]
 # Build stage
 FROM base AS builder
 COPY . .
-COPY internal ./internal
-COPY main.go ./
 
+# BuildKit only defines the platform args in the global scope; without redeclaring them
+# here they are empty, and every platform gets a binary for the build host.
+ARG TARGETOS TARGETARCH TARGETVARIANT
 ARG TAG=dev
-RUN GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -ldflags "-s -w -X main.version=$TAG" -o drain
+RUN GOOS=$TARGETOS GOARCH=$TARGETARCH GOARM=${TARGETVARIANT#v} CGO_ENABLED=0 go build -ldflags "-s -w -X main.version=$TAG" -o drain
 
 FROM scratch
 

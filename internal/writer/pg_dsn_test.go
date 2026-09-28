@@ -1,11 +1,22 @@
 package writer
 
 import (
+	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
+
+// password is the password a DSN carries, as lib/pq will read it.
+func password(t *testing.T, dsn string) string {
+	t.Helper()
+	u, err := url.Parse(dsn)
+	if err != nil {
+		t.Fatalf("DSN %q does not parse: %v", dsn, err)
+	}
+	p, _ := u.User.Password()
+	return p
+}
 
 func TestDSNPasswordFile(t *testing.T) {
 	dir := t.TempDir()
@@ -20,11 +31,8 @@ func TestDSNPasswordFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(got, "password=s3cr3t ") {
-		t.Fatalf("secret not used, got %q", got)
-	}
-	if strings.Contains(got, "fallback") {
-		t.Fatalf("fell back to the literal, got %q", got)
+	if p := password(t, got); p != "s3cr3t" {
+		t.Fatalf("secret not used, got %q", p)
 	}
 }
 
@@ -66,7 +74,7 @@ func TestDSNPasswordEnv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(got, "password=from-env ") {
+	if password(t, got) != "from-env" {
 		t.Fatalf("env not used, got %q", got)
 	}
 }
@@ -82,7 +90,7 @@ func TestDSNFileBeatsEnv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(got, "password=from-file ") {
+	if password(t, got) != "from-file" {
 		t.Fatalf("file should win over env, got %q", got)
 	}
 }
@@ -95,7 +103,23 @@ func TestDSNFallsBackWithoutSecret(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(got, "password=password") {
+	if password(t, got) != "password" {
 		t.Fatalf("dev fallback broken, got %q", got)
+	}
+}
+
+// A password is opaque bytes. key=value DSNs end an unquoted value at whitespace, so
+// every character a generated secret might hold has to survive the round trip.
+func TestDSNEscapesPassword(t *testing.T) {
+	os.Unsetenv("DATABASE_URL")
+	os.Unsetenv("POSTGRES_PASSWORD_FILE")
+	const tricky = `a b'c\\d@e/f:g?h#i%j+k=l`
+	t.Setenv("POSTGRES_PASSWORD", tricky)
+	got, err := DSN("postgres", "fallback")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p := password(t, got); p != tricky {
+		t.Fatalf("password = %q, want %q", p, tricky)
 	}
 }

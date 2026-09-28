@@ -238,7 +238,11 @@ BEGIN
   --------------------------------------------------------------------------
   v_phase := clock_timestamp();
 
-  TRUNCATE weekly_lifecycle;
+  -- DELETE, not TRUNCATE. TRUNCATE takes an ACCESS EXCLUSIVE lock held until the COMMIT
+  -- below, so every dashboard read of this table would block for the whole rebuild;
+  -- under DELETE readers keep seeing the previous rows until the new ones commit. The
+  -- table is one row per week, so the dead tuples are nothing for autovacuum.
+  DELETE FROM weekly_lifecycle;
 
   INSERT INTO weekly_lifecycle (week, active, new_installs, retained, resurrected, churned)
   WITH f AS (
@@ -278,7 +282,9 @@ BEGIN
   --------------------------------------------------------------------------
   v_phase := clock_timestamp();
 
-  TRUNCATE cohort_retention_weekly;
+  -- DELETE for the same reason as weekly_lifecycle: a few thousand rows, and readers
+  -- should never wait on the rebuild.
+  DELETE FROM cohort_retention_weekly;
 
   INSERT INTO cohort_retention_weekly (cohort_week, week_index, cohort_size, actives)
   WITH cohorts AS (
