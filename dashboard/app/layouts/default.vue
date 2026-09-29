@@ -22,9 +22,11 @@ async function signOut() {
         <NuxtLink :to="{ path: '/features', query: route.query }">Features</NuxtLink>
         <NuxtLink :to="{ path: '/environment', query: route.query }">Environment</NuxtLink>
         <NuxtLink :to="{ path: '/usage', query: route.query }">Usage</NuxtLink>
+        <NuxtLink :to="{ path: '/live', query: route.query }">Live</NuxtLink>
       </nav>
       <span class="spacer" />
-      <RangePicker />
+      <!-- Live is always the trailing hour; a range there would only mislead. -->
+      <RangePicker v-if="route.path !== '/live'" />
       <button v-if="loggedIn" class="who" @click="signOut">
         <img v-if="user?.avatar" :src="user.avatar" alt="" width="22" height="22">
         <span>{{ user?.login }}</span>
