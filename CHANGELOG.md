@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.1](https://github.com/amir20/drain/compare/v1.2.0...v1.2.1) (2026-09-29)
+
+### Bug Fixes
+
+* **beacon:** server timeouts, bounded shutdown, escaped DSN ([3a85a34](https://github.com/amir20/drain/commit/3a85a34af62bc552ac13b873320427cd0b1f7e9b))
+* **dashboard:** drop the bucket override, cache health, parallel meta ([f475780](https://github.com/amir20/drain/commit/f4757806e11129d1decced15414dd04ad321c5f2))
+* **deps:** update dependency vue-router to v5 ([39ba60b](https://github.com/amir20/drain/commit/39ba60b5db707339b57cd7e7cce44bab02b5b72b))
+* **docker:** cross-compile for the target platform ([5779618](https://github.com/amir20/drain/commit/57796184e7eeea90b30a4c9d7c6aeaab152ea669))
+
+### Performance Improvements
+
+* **beacon:** batch inserts instead of one INSERT per beacon ([783a0f8](https://github.com/amir20/drain/commit/783a0f80eeab8495ac91ce51a7c7de51ea0adfa2))
+* **refresh:** stop blocking dashboard reads during the hourly rebuild ([a77f5df](https://github.com/amir20/drain/commit/a77f5df2477403a93837e77eb628943239250bf0))
+
 ## [1.2.0](https://github.com/amir20/drain/compare/v1.1.9...v1.2.0) (2026-09-27)
 
 ### Features
