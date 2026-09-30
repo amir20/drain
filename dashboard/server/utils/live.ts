@@ -24,6 +24,8 @@ const SUMMARY_MS = 2_000
 /** drain flushes every 250ms, so a batch arrives as a burst; send it as one message. */
 const COALESCE_MS = 250
 const RETRY_MS = 3_000
+/** A listener that keeps failing backs off to this, rather than re-reading the hour every few seconds. */
+const MAX_RETRY_MS = 60_000
 
 /** One beacon as the page sees it. The install id is cut to a prefix; no IP ever. */
 export interface LiveBeacon {
@@ -94,6 +96,7 @@ let outgoing: LiveBeacon[] = []
 let flushTimer: ReturnType<typeof setTimeout> | undefined
 let summaryTimer: ReturnType<typeof setInterval> | undefined
 let retryTimer: ReturnType<typeof setTimeout> | undefined
+let retryMs = RETRY_MS
 
 export function subscribeLive(fn: Listener): () => void {
   listeners.add(fn)
@@ -108,6 +111,7 @@ export function subscribeLive(fn: Listener): () => void {
     clearTimeout(retryTimer)
     clearTimeout(flushTimer)
     summaryTimer = retryTimer = flushTimer = undefined
+    retryMs = RETRY_MS
     if (conn) drop(conn)
     records = []
     ids = new Set()
@@ -151,10 +155,16 @@ async function connect() {
 
     records = []
     ids = new Set()
-    for (const r of rows) add(toRec(r))
+    // One malformed row - no name, say - must not cost the whole view; skip it, as
+    // receive() does for a notification.
+    for (const r of rows) {
+      const rec = tryRec(r)
+      if (rec) add(rec)
+    }
     for (const r of pending) add(r)
     pending = null
     ready = true
+    retryMs = RETRY_MS
     broadcast(snapshot())
   } catch (err) {
     console.error('live listener failed to start', err)
@@ -174,16 +184,18 @@ function drop(client: pg.Client) {
   retryTimer = setTimeout(() => {
     retryTimer = undefined
     if (listeners.size > 0 && !conn) void connect()
-  }, RETRY_MS)
+  }, retryMs)
+  retryMs = Math.min(retryMs * 2, MAX_RETRY_MS)
 }
 
 function receive(raw: string) {
-  let rec: Rec
+  let rec: Rec | undefined
   try {
-    rec = toRec(JSON.parse(raw) as Payload)
+    rec = tryRec(JSON.parse(raw) as Payload)
   } catch {
     return
   }
+  if (!rec) return
   if (pending) {
     pending.push(rec)
     return
@@ -198,9 +210,10 @@ function receive(raw: string) {
   }, COALESCE_MS)
 }
 
-function toRec(p: Payload): Rec {
+/** Undefined for a beacon with no usable time or name. */
+function tryRec(p: Payload): Rec | undefined {
   const at = new Date(p.time).getTime()
-  if (!Number.isFinite(at) || !p.name) throw new Error('bad beacon')
+  if (!Number.isFinite(at) || !p.name) return undefined
   const client = p.client ?? ''
   const id = `${at}|${p.name}|${client}`
   return { ...p, at, client, id, key: hashKey(id) }
