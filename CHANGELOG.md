@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.4](https://github.com/amir20/drain/compare/v1.2.3...v1.2.4) (2026-09-30)
+
+### Bug Fixes
+
+* **live:** skip malformed beacons in the seed read instead of failing ([b8f8c97](https://github.com/amir20/drain/commit/b8f8c9782d27ee046073ba0a086263f4744fdb0c))
+
 ## [1.2.3](https://github.com/amir20/drain/compare/v1.2.2...v1.2.3) (2026-09-30)
 
 ### Bug Fixes
