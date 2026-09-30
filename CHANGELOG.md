@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.3](https://github.com/amir20/drain/compare/v1.2.2...v1.2.3) (2026-09-30)
+
+### Bug Fixes
+
+* **live:** stop the dashboard crashing, push beacons over LISTEN/NOTIFY ([b7af8cb](https://github.com/amir20/drain/commit/b7af8cbd841f83c9b694597973b757355e93d125))
+
 ## [1.2.2](https://github.com/amir20/drain/compare/v1.2.1...v1.2.2) (2026-09-29)
 
 ## [1.2.1](https://github.com/amir20/drain/compare/v1.2.0...v1.2.1) (2026-09-29)
