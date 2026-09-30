@@ -1,31 +1,31 @@
+import pg from 'pg'
+
 /**
- * The live view: one poller per process, fanned out to every open /api/live stream.
+ * The live view: one Postgres LISTEN per process, fanned out to every open /api/live
+ * stream.
  *
- * Everything else on the dashboard reads aggregates that refresh hourly. This reads the
- * raw `beacon` hypertable instead, but only its newest hour, which sits in the one
- * uncompressed chunk and is covered by idx_beacon_time_name_client. The poller runs only
- * while someone has the page open, and a tab more costs nothing: every subscriber gets
- * the same tick, so the database sees one set of queries every POLL_MS regardless.
+ * drain announces each beacon on `drain_beacon` once its insert has committed
+ * (internal/writer/pg.go), with a small whitelisted payload. This keeps the trailing hour
+ * of those in memory - a few thousand small objects - and answers everything on the page
+ * from it. The database sees one read of the last hour when the first viewer arrives,
+ * and nothing after that however many tabs are open.
  *
- * The dashboard runs a single replica (see cache.ts), so module state is the whole story.
+ * Nothing runs while nobody is watching: the listener connects on the first subscriber
+ * and disconnects after the last. The dashboard runs a single replica (see cache.ts), so
+ * module state is the whole story.
  */
 
-const POLL_MS = 5_000
-/** Newest beacons sent per tick. A feed scrolling faster than this is unreadable anyway. */
+const CHANNEL = 'drain_beacon'
+const WINDOW_MS = 60 * 60_000
+/** Newest beacons a fresh viewer opens on. */
 const FEED_LIMIT = 100
-/**
- * The feed re-reads this far back and drops what it already sent, rather than trusting
- * `time > last`. drain stamps `time` when the request arrives but inserts from a single
- * writer goroutine, so a beacon can commit after a later-stamped one; a strict cursor
- * would skip it for good.
- */
-const LOOKBACK = '20 seconds'
+/** How often the counters and chart are re-sent. Individual beacons go out as they land. */
+const SUMMARY_MS = 2_000
+/** drain flushes every 250ms, so a batch arrives as a burst; send it as one message. */
+const COALESCE_MS = 250
+const RETRY_MS = 3_000
 
-/**
- * What a feed row carries. Deliberately a whitelist: the payload also holds the hashed
- * client address, and nothing on this page needs it. The install id is cut to a prefix -
- * enough to see the same install come round again, not a full identifier to copy out.
- */
+/** One beacon as the page sees it. The install id is cut to a prefix; no IP ever. */
 export interface LiveBeacon {
   key: string
   time: string
@@ -33,140 +33,312 @@ export interface LiveBeacon {
   install: string
   version: string | null
   mode: string | null
+  auth: string | null
   browser: string | null
   os: string | null
-  auth: string | null
   containers: number | null
+  activeMinutes: string | null
 }
 
-export interface LiveTick {
+export interface LiveSummary {
   at: string
-  stats: {
-    beaconsLastMinute: number
-    installsLast5m: number
-    installsLastHour: number
-  }
-  /** Per-minute beacon counts by name for the trailing hour, oldest first. */
-  minutes: { minute: string; name: string; beacons: number }[]
+  /** False while the listener is down; the numbers are then as of the last good moment. */
+  connected: boolean
+  installsLast5m: number
+  installsLastHour: number
+  /** Beacons in the trailing hour, by name. */
+  lastHour: Record<string, number>
+  /** Whole minutes, oldest first: `counts[name][i]` is minute `start + i`. */
+  minutes: { start: string; counts: Record<string, number[]> }
   /** Versions seen in the last 15 minutes, by distinct install. */
   versions: { version: string; installs: number }[]
-  /** Beacons not in any earlier tick, newest first. On a fresh subscriber, the latest few. */
-  beacons: LiveBeacon[]
 }
 
-type Listener = (tick: LiveTick) => void
+export type LiveMessage =
+  | { type: 'snapshot'; summary: LiveSummary; beacons: LiveBeacon[] }
+  | { type: 'beacons'; beacons: LiveBeacon[] }
+  | { type: 'summary'; summary: LiveSummary }
+
+type Listener = (msg: LiveMessage) => void
+
+/** The payload drain sends, and the shape the seed read produces to match it. */
+interface Payload {
+  time: string | Date
+  name: string
+  client: string
+  version?: string | null
+  mode?: string | null
+  auth?: string | null
+  ua?: string | null
+  containers?: number | null
+  activeMinutes?: string | null
+}
+
+interface Rec extends Payload {
+  at: number
+  /** Identity for de-duplication. Holds the full install id, so it stays server-side. */
+  id: string
+  /** What the browser gets instead. */
+  key: string
+}
 
 const listeners = new Set<Listener>()
-let timer: ReturnType<typeof setInterval> | undefined
-let last: LiveTick | undefined
-let seen = new Set<string>()
-/** The newest beacons across ticks, newest first, so a late joiner opens on a full feed. */
-let recent: LiveBeacon[] = []
-let running = false
+let conn: pg.Client | undefined
+let ready = false
+/** Notifications that land while the seed read is still running. */
+let pending: Rec[] | null = null
+/** The trailing hour, oldest first. */
+let records: Rec[] = []
+let ids = new Set<string>()
+let outgoing: LiveBeacon[] = []
+let flushTimer: ReturnType<typeof setTimeout> | undefined
+let summaryTimer: ReturnType<typeof setInterval> | undefined
+let retryTimer: ReturnType<typeof setTimeout> | undefined
 
 export function subscribeLive(fn: Listener): () => void {
   listeners.add(fn)
-  // A late joiner gets the last tick straight away rather than a blank page for 5s.
-  if (last) fn({ ...last, beacons: recent })
-  if (!timer) {
-    void poll()
-    timer = setInterval(() => void poll(), POLL_MS)
-  }
+  if (ready) deliver(fn, snapshot())
+  if (!conn && !retryTimer) void connect()
+  summaryTimer ??= setInterval(() => broadcast({ type: 'summary', summary: summarize() }), SUMMARY_MS)
+
   return () => {
     listeners.delete(fn)
-    if (listeners.size === 0 && timer) {
-      clearInterval(timer)
-      timer = undefined
-      last = undefined
-      seen = new Set()
-      recent = []
-    }
+    if (listeners.size > 0) return
+    clearInterval(summaryTimer)
+    clearTimeout(retryTimer)
+    clearTimeout(flushTimer)
+    summaryTimer = retryTimer = flushTimer = undefined
+    if (conn) drop(conn)
+    records = []
+    ids = new Set()
+    outgoing = []
   }
 }
 
-async function poll() {
-  // A slow tick must not stack a second one behind it.
-  if (running) return
-  running = true
+async function connect() {
+  const client = new pg.Client({ connectionString: useRuntimeConfig().databaseUrl })
+  conn = client
+  // An unhandled 'error' on a pg client takes the whole process down.
+  client.on('error', (err) => {
+    console.error('live listener error', err)
+    drop(client)
+  })
+  client.on('end', () => drop(client))
+  client.on('notification', (n) => {
+    if (conn === client && n.channel === CHANNEL && n.payload) receive(n.payload)
+  })
+
   try {
-    const tick = await readTick()
-    last = tick
-    recent = [...tick.beacons, ...recent].slice(0, FEED_LIMIT)
-    for (const fn of listeners) fn(tick)
+    await client.connect()
+    // Listen before reading, and hold what arrives meanwhile, so a beacon committed
+    // during the read is either in it or in `pending` - never in neither.
+    pending = []
+    await client.query(`LISTEN ${CHANNEL}`)
+    const rows = await query<Payload>(
+      `SELECT time, name, client_id AS client,
+              metadata ->> 'version'                 AS version,
+              metadata ->> 'mode'                    AS mode,
+              metadata ->> 'authProvider'            AS auth,
+              left(metadata ->> 'browser', 256)      AS ua,
+              drain_int(metadata, 'runningContainers') AS containers,
+              metadata ->> 'activeMinutes'           AS "activeMinutes"
+         FROM beacon
+        -- Whole minutes, so the oldest bar is complete.
+        WHERE time >= time_bucket('1 minute', now() - interval '1 hour')
+        ORDER BY time`,
+    )
+    if (conn !== client) return
+
+    records = []
+    ids = new Set()
+    for (const r of rows) add(toRec(r))
+    for (const r of pending) add(r)
+    pending = null
+    ready = true
+    broadcast(snapshot())
   } catch (err) {
-    console.error('live poll failed', err)
-  } finally {
-    running = false
+    console.error('live listener failed to start', err)
+    drop(client)
   }
 }
 
-async function readTick(): Promise<LiveTick> {
-  const [stats, minutes, versions, rows] = await Promise.all([
-    query<LiveTick['stats']>(
-      `SELECT count(*) FILTER (WHERE time > now() - interval '1 minute')::int              AS "beaconsLastMinute",
-              count(DISTINCT client_id) FILTER (WHERE time > now() - interval '5 minutes')::int AS "installsLast5m",
-              count(DISTINCT client_id)::int                                                AS "installsLastHour"
-         FROM beacon
-        WHERE time > now() - interval '1 hour'`,
-    ),
-    query<LiveTick['minutes'][number]>(
-      `SELECT time_bucket('1 minute', time) AS minute, name, count(*)::int AS beacons
-         FROM beacon
-        -- Whole minutes, or the oldest bar would shrink a little on every tick.
-        WHERE time >= time_bucket('1 minute', now() - interval '1 hour')
-        GROUP BY 1, 2 ORDER BY 1`,
-    ),
-    query<LiveTick['versions'][number]>(
-      `SELECT COALESCE(NULLIF(metadata->>'version', ''), 'unknown') AS version,
-              count(DISTINCT client_id)::int AS installs
-         FROM beacon
-        WHERE time > now() - interval '15 minutes'
-        GROUP BY 1 ORDER BY 2 DESC LIMIT 8`,
-    ),
-    query<Omit<LiveBeacon, 'key'> & { client_id: string }>(
-      `SELECT time, name, client_id,
-              left(client_id, 8)                     AS install,
-              NULLIF(metadata->>'version', '')       AS version,
-              NULLIF(metadata->>'mode', '')          AS mode,
-              drain_browser(metadata)                AS browser,
-              drain_os(metadata)                     AS os,
-              drain_auth_provider(metadata)          AS auth,
-              drain_int(metadata, 'runningContainers') AS containers
-         FROM beacon
-        WHERE time > now() - $1::interval
-        ORDER BY time DESC
-        LIMIT $2`,
-      [LOOKBACK, FEED_LIMIT],
-    ),
-  ])
+/** Tear down one connection; if anyone is still watching, try again shortly. */
+function drop(client: pg.Client) {
+  if (conn !== client) return
+  conn = undefined
+  ready = false
+  pending = null
+  client.end().catch(() => {})
+  if (listeners.size === 0) return
+  broadcast({ type: 'summary', summary: summarize() })
+  retryTimer = setTimeout(() => {
+    retryTimer = undefined
+    if (listeners.size > 0 && !conn) void connect()
+  }, RETRY_MS)
+}
 
-  const fresh: LiveBeacon[] = []
-  const window = new Set<string>()
-  for (const { client_id, ...r } of rows) {
-    const time = new Date(r.time).toISOString()
-    // The full id stays server-side; it only has to make the key unique.
-    const key = `${time}|${r.name}|${client_id}`
-    window.add(key)
-    if (!seen.has(key)) fresh.push({ ...r, time, key: hashKey(key) })
+function receive(raw: string) {
+  let rec: Rec
+  try {
+    rec = toRec(JSON.parse(raw) as Payload)
+  } catch {
+    return
   }
-  // Only the lookback window can come back, so that is all worth remembering.
-  seen = window
+  if (pending) {
+    pending.push(rec)
+    return
+  }
+  if (!add(rec)) return
+  outgoing.push(toBeacon(rec))
+  flushTimer ??= setTimeout(() => {
+    flushTimer = undefined
+    const beacons = outgoing.reverse()
+    outgoing = []
+    broadcast({ type: 'beacons', beacons })
+  }, COALESCE_MS)
+}
+
+function toRec(p: Payload): Rec {
+  const at = new Date(p.time).getTime()
+  if (!Number.isFinite(at) || !p.name) throw new Error('bad beacon')
+  const client = p.client ?? ''
+  const id = `${at}|${p.name}|${client}`
+  return { ...p, at, client, id, key: hashKey(id) }
+}
+
+/** Keeps `records` ordered and duplicate-free, and trims what fell out of the hour. */
+function add(rec: Rec): boolean {
+  if (ids.has(rec.id)) return false
+  ids.add(rec.id)
+  records.push(rec)
+  // drain stamps time on arrival but writes from one goroutine, so order is only nearly
+  // guaranteed. A stray is walked back into place; there is never more than a batch.
+  for (let i = records.length - 1; i > 0 && records[i - 1]!.at > records[i]!.at; i--) {
+    ;[records[i - 1], records[i]] = [records[i]!, records[i - 1]!]
+  }
+  const cutoff = minuteFloor(Date.now() - WINDOW_MS)
+  let drop = 0
+  while (drop < records.length && records[drop]!.at < cutoff) ids.delete(records[drop++]!.id)
+  if (drop) records = records.slice(drop)
+  return true
+}
+
+function snapshot(): LiveMessage {
+  const beacons = records.slice(-FEED_LIMIT).reverse().map(toBeacon)
+  return { type: 'snapshot', summary: summarize(), beacons }
+}
+
+function summarize(): LiveSummary {
+  const now = Date.now()
+  const start = minuteFloor(now - WINDOW_MS)
+  const width = Math.floor((minuteFloor(now) - start) / 60_000) + 1
+  const hourAgo = now - WINDOW_MS
+  const fiveAgo = now - 5 * 60_000
+  const fifteenAgo = now - 15 * 60_000
+
+  const lastHour: Record<string, number> = {}
+  const counts: Record<string, number[]> = {}
+  const hour = new Set<string>()
+  const five = new Set<string>()
+  const versionOf = new Map<string, string>()
+
+  for (const r of records) {
+    if (r.at >= start) {
+      const i = Math.floor((r.at - start) / 60_000)
+      if (i < width) (counts[r.name] ??= new Array(width).fill(0))[i]++
+    }
+    if (r.at <= hourAgo) continue
+    lastHour[r.name] = (lastHour[r.name] ?? 0) + 1
+    hour.add(r.client)
+    if (r.at > fiveAgo) five.add(r.client)
+    // Oldest first, so an install that upgraded in the window counts once, as the newer.
+    if (r.at > fifteenAgo) versionOf.set(r.client, r.version || 'unknown')
+  }
+
+  const perVersion = new Map<string, number>()
+  for (const v of versionOf.values()) perVersion.set(v, (perVersion.get(v) ?? 0) + 1)
+  const versions = [...perVersion]
+    .map(([version, installs]) => ({ version, installs }))
+    .sort((a, b) => b.installs - a.installs)
+    .slice(0, 8)
 
   return {
-    at: new Date().toISOString(),
-    stats: stats[0] ?? { beaconsLastMinute: 0, installsLast5m: 0, installsLastHour: 0 },
-    minutes: minutes.map((m) => ({ ...m, minute: new Date(m.minute).toISOString() })),
+    at: new Date(now).toISOString(),
+    connected: ready,
+    installsLast5m: five.size,
+    installsLastHour: hour.size,
+    lastHour,
+    minutes: { start: new Date(start).toISOString(), counts },
     versions,
-    beacons: fresh,
   }
 }
 
-/** A short opaque row key, so the browser never sees the full install id. */
-function hashKey(s: string): string {
-  let h = 2166136261
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i)
-    h = Math.imul(h, 16777619)
+function toBeacon(r: Rec): LiveBeacon {
+  const ua = r.ua || null
+  return {
+    key: r.key,
+    time: new Date(r.at).toISOString(),
+    name: r.name,
+    install: r.client.slice(0, 8),
+    version: r.version || null,
+    mode: r.mode || null,
+    auth: r.auth || null,
+    browser: ua && browserOf(ua),
+    os: ua && osOf(ua),
+    containers: r.name === 'events' ? (r.containers ?? null) : null,
+    activeMinutes: r.activeMinutes || null,
   }
-  return (h >>> 0).toString(36)
+}
+
+/** Same buckets, same order, as drain_browser in migrations/001. */
+function browserOf(ua: string): string {
+  if (ua.includes('Edg/') || ua.includes('Edge/')) return 'Edge'
+  if (ua.includes('OPR/') || ua.includes('Opera')) return 'Opera'
+  if (ua.includes('Firefox/')) return 'Firefox'
+  if (ua.includes('Chrome/')) return 'Chrome'
+  if (ua.includes('Safari/')) return 'Safari'
+  return 'Other'
+}
+
+/** Same buckets, same order, as drain_os in migrations/001. */
+function osOf(ua: string): string {
+  if (ua.includes('Windows')) return 'Windows'
+  if (ua.includes('Android')) return 'Android'
+  if (/iPhone|iPad|iPod/.test(ua)) return 'iOS'
+  if (ua.includes('Mac OS X') || ua.includes('Macintosh')) return 'macOS'
+  if (ua.includes('Linux') || ua.includes('X11')) return 'Linux'
+  return 'Other'
+}
+
+function broadcast(msg: LiveMessage) {
+  for (const fn of listeners) deliver(fn, msg)
+}
+
+/** One subscriber throwing must not stop the rest, or escape into the pg client. */
+function deliver(fn: Listener, msg: LiveMessage) {
+  try {
+    fn(msg)
+  } catch (err) {
+    console.error('live subscriber failed', err)
+  }
+}
+
+function minuteFloor(ms: number): number {
+  return Math.floor(ms / 60_000) * 60_000
+}
+
+/**
+ * A short opaque row key, so the browser never sees the full install id. Two 32-bit
+ * FNV-1a lanes: an hour holds ~10k beacons, where one lane would collide about 1% of
+ * the time.
+ */
+function hashKey(s: string): string {
+  let a = 2166136261
+  let b = 0x811c9dc5 ^ 0x5bd1e995
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i)
+    a = Math.imul(a ^ c, 16777619)
+    b = Math.imul(b ^ c, 16777619) ^ (b >>> 15)
+  }
+  return (a >>> 0).toString(36) + (b >>> 0).toString(36)
 }

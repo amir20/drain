@@ -1,44 +1,79 @@
 <script setup lang="ts">
-import type { LiveBeacon, LiveTick } from '~~/server/utils/live'
+import type { LiveBeacon, LiveMessage, LiveSummary } from '~~/server/utils/live'
 import { barSeries, baseOptions, fmtInt } from '~/composables/useChartOptions'
 
 definePageMeta({ middleware: 'auth' })
 useHead({ title: 'Live · Dozzle analytics' })
 
 const FEED_MAX = 100
-/** Beacon names in a fixed colour order; anything newer folds into "other". */
-const NAMES = ['events', 'start', 'usage'] as const
+
+/**
+ * What each beacon is, in words. The names are Dozzle's wire names, which say little on
+ * their own - "events" is the beacon the UI's event stream sends, i.e. someone opened it.
+ */
+const KINDS = [
+  {
+    name: 'events',
+    label: 'UI opened',
+    about: 'Someone opened Dozzle in a browser. At most one every 5 minutes per install.',
+  },
+  { name: 'start', label: 'Server started', about: 'A Dozzle server or agent booted.' },
+  {
+    name: 'usage',
+    label: 'Usage report',
+    about:
+      'Counters of what was used since the last report. One per install per day, sent 24 hours after the server starts, from v11.1.3.',
+  },
+] as const
+const kindOf = (name: string) => KINDS.find((k) => k.name === name)
 
 const { theme, version } = useChartTheme()
 
-const tick = shallowRef<LiveTick | null>(null)
+const summary = shallowRef<LiveSummary | null>(null)
 const feed = shallowRef<LiveBeacon[]>([])
 const status = ref<'connecting' | 'live' | 'reconnecting'>('connecting')
 const paused = ref(false)
 /** Beacons that arrived while paused, shown on resume. */
-let held: LiveBeacon[] = []
+const held = shallowRef<LiveBeacon[]>([])
+/** Empty means every kind. */
+const only = ref<string | null>(null)
+/** Rows that arrived after the page opened, so they can be picked out as they land. */
+const fresh = new Set<string>()
 
 let source: EventSource | undefined
+
+function merge(into: LiveBeacon[], incoming: LiveBeacon[]): LiveBeacon[] {
+  const have = new Set(into.map((b) => b.key))
+  return [...incoming.filter((b) => !have.has(b.key)), ...into].slice(0, FEED_MAX)
+}
 
 onMounted(() => {
   // Same origin, so the session cookie rides along and require-auth.ts sees it.
   source = new EventSource('/api/live')
-  source.addEventListener('open', () => (status.value = 'live'))
   // EventSource retries on its own - including after the server's 15-minute close - so
   // an error is only ever "reconnecting" from here.
   source.addEventListener('error', () => (status.value = 'reconnecting'))
-  source.addEventListener('tick', (e) => {
-    status.value = 'live'
-    const t = JSON.parse((e as MessageEvent).data) as LiveTick
-    tick.value = t
-    if (!t.beacons.length) return
-    if (paused.value) {
-      held = [...t.beacons, ...held].slice(0, FEED_MAX)
-      return
+  const on = (type: LiveMessage['type'], fn: (m: any) => void) =>
+    source!.addEventListener(type, (e) => {
+      status.value = 'live'
+      fn(JSON.parse((e as MessageEvent).data))
+    })
+
+  on('snapshot', (m: Extract<LiveMessage, { type: 'snapshot' }>) => {
+    summary.value = m.summary
+    // A reconnect replays the recent buffer; merge keeps rows already on screen.
+    feed.value = merge(feed.value, m.beacons)
+  })
+  on('summary', (m: Extract<LiveMessage, { type: 'summary' }>) => (summary.value = m.summary))
+  on('beacons', (m: Extract<LiveMessage, { type: 'beacons' }>) => {
+    for (const b of m.beacons) fresh.add(b.key)
+    if (paused.value) held.value = merge(held.value, m.beacons)
+    else feed.value = merge(feed.value, m.beacons)
+    // Only rows still on screen need remembering.
+    if (fresh.size > 4 * FEED_MAX) {
+      const keep = new Set([...feed.value, ...held.value].map((b) => b.key))
+      for (const k of fresh) if (!keep.has(k)) fresh.delete(k)
     }
-    // A reconnect replays the server's recent buffer; skip rows already on screen.
-    const have = new Set(feed.value.map((b) => b.key))
-    feed.value = [...t.beacons.filter((b) => !have.has(b.key)), ...feed.value].slice(0, FEED_MAX)
   })
 })
 
@@ -46,33 +81,39 @@ onBeforeUnmount(() => source?.close())
 
 function togglePause() {
   paused.value = !paused.value
-  if (!paused.value && held.length) {
-    const have = new Set(feed.value.map((b) => b.key))
-    feed.value = [...held.filter((b) => !have.has(b.key)), ...feed.value].slice(0, FEED_MAX)
-    held = []
+  if (!paused.value && held.value.length) {
+    feed.value = merge(feed.value, held.value)
+    held.value = []
   }
 }
 
-const stats = computed(() => tick.value?.stats)
-const loading = computed(() => !tick.value)
+const loading = computed(() => !summary.value)
+const dbDown = computed(() => summary.value && !summary.value.connected)
+const shown = computed(() => (only.value ? feed.value.filter((b) => b.name === only.value) : feed.value))
 
 /** Stacked per-minute bars. The newest minute is still filling, so it is drawn faded. */
 const minutesOption = computed(() => {
   void version.value
   const t = theme.value
-  const rows = tick.value?.minutes ?? []
-  if (!rows.length) return null
-  const minutes = [...new Set(rows.map((r) => r.minute))].sort()
-  const lastMinute = minutes[minutes.length - 1]
-  const byName = new Map<string, Map<string, number>>()
-  for (const r of rows) {
-    const name = (NAMES as readonly string[]).includes(r.name) ? r.name : 'other'
-    const m = byName.get(name) ?? new Map<string, number>()
-    m.set(r.minute, (m.get(r.minute) ?? 0) + r.beacons)
-    byName.set(name, m)
-  }
-  const names = [...NAMES, 'other'].filter((n) => byName.has(n))
+  const m = summary.value?.minutes
+  const width = m ? Math.max(0, ...Object.values(m.counts).map((c) => c.length)) : 0
+  if (!m || !width) return null
+  const start = Date.parse(m.start)
+  const minutes = Array.from({ length: width }, (_, i) => new Date(start + i * 60_000).toISOString())
+  const other = Object.keys(m.counts).filter((n) => !kindOf(n))
   const base = baseOptions(t)
+  const series = KINDS.filter((k) => m.counts[k.name]).map((k, i) => ({
+    label: k.label,
+    color: t.series[KINDS.indexOf(k)] ?? t.series[i]!,
+    values: m.counts[k.name]!,
+  }))
+  if (other.length) {
+    series.push({
+      label: 'Other',
+      color: t.ordinalNone,
+      values: minutes.map((_, i) => other.reduce((n, name) => n + (m.counts[name]![i] ?? 0), 0)),
+    })
+  }
   return {
     ...base,
     xAxis: {
@@ -85,24 +126,38 @@ const minutesOption = computed(() => {
           new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       },
     },
-    series: names.map((name, i) => {
-      const color = name === 'other' ? t.ordinalNone : t.series[i]!
-      return barSeries(
-        name,
-        color,
-        minutes.map((m) => ({
-          value: byName.get(name)!.get(m) ?? 0,
-          itemStyle: m === lastMinute ? { opacity: 0.45 } : undefined,
+    series: series.map((s) =>
+      barSeries(
+        s.label,
+        s.color,
+        s.values.map((value, i) => ({
+          value,
+          itemStyle: i === width - 1 ? { opacity: 0.45 } : undefined,
         })) as any,
         {
           stack: 'beacons',
           barCategoryGap: '20%',
-          itemStyle: { color, borderColor: t.surface, borderWidth: 1 },
+          itemStyle: { color: s.color, borderColor: t.surface, borderWidth: 1 },
         },
-      )
-    }),
+      ),
+    ),
   }
 })
+
+/** One line saying what this particular beacon tells us. */
+function details(b: LiveBeacon): string {
+  const parts: string[] = []
+  if (b.name === 'events') {
+    if (b.browser && b.os) parts.push(`${b.browser} on ${b.os}`)
+    if (b.containers !== null) parts.push(`${fmtInt(b.containers)} running containers`)
+  } else if (b.name === 'start') {
+    if (b.mode) parts.push(`${b.mode} mode`)
+  } else if (b.name === 'usage') {
+    if (b.activeMinutes) parts.push(`open ${b.activeMinutes} min that day`)
+  }
+  if (b.auth && b.auth !== 'none') parts.push(`${b.auth} auth`)
+  return parts.join(' · ') || '—'
+}
 
 function ago(iso: string): string {
   const s = Math.max(0, Math.round((now.value - Date.parse(iso)) / 1000))
@@ -110,7 +165,7 @@ function ago(iso: string): string {
   return `${Math.floor(s / 60)}m ago`
 }
 
-// Drives the "Ns ago" column without re-rendering on every tick of the stream.
+// Drives the "Ns ago" column without re-rendering on every message of the stream.
 const now = ref(Date.now())
 let clock: ReturnType<typeof setInterval> | undefined
 onMounted(() => (clock = setInterval(() => (now.value = Date.now()), 1000)))
@@ -121,35 +176,34 @@ onBeforeUnmount(() => clearInterval(clock))
   <div>
     <div class="head">
       <p class="section-title">Right now</p>
-      <span class="status" :class="status">
+      <span class="status" :class="dbDown ? 'reconnecting' : status">
         <span class="dot" aria-hidden="true" />
-        {{ status === 'live' ? 'Live' : status === 'connecting' ? 'Connecting…' : 'Reconnecting…' }}
-        <span v-if="tick" class="muted">· updated {{ ago(tick.at) }}</span>
+        <template v-if="dbDown">Lost the database, retrying…</template>
+        <template v-else>
+          {{ status === 'live' ? 'Live' : status === 'connecting' ? 'Connecting…' : 'Reconnecting…' }}
+        </template>
       </span>
     </div>
 
-    <div class="grid cols-3">
-      <StatTile
-        label="Beacons, last minute"
-        :value="fmtInt(stats?.beaconsLastMinute)"
-        hint="every beacon type"
-      />
-      <StatTile
-        label="Installs, last 5 min"
-        :value="fmtInt(stats?.installsLast5m)"
-        hint="distinct installs reporting"
-      />
+    <div class="grid cols-4">
       <StatTile
         label="Installs, last hour"
-        :value="fmtInt(stats?.installsLastHour)"
-        hint="distinct installs reporting"
+        :value="fmtInt(summary?.installsLastHour)"
+        :hint="`${fmtInt(summary?.installsLast5m)} in the last 5 minutes`"
+      />
+      <StatTile
+        v-for="k in KINDS"
+        :key="k.name"
+        :label="`${k.label}, last hour`"
+        :value="fmtInt(summary ? (summary.lastHour[k.name] ?? 0) : undefined)"
+        :hint="k.about"
       />
     </div>
 
     <div class="grid split" style="margin-top: 16px">
       <ChartCard
         title="Beacons per minute"
-        hint="The trailing hour, straight from the beacon table rather than the hourly aggregates. The faded bar is the current minute, still filling."
+        hint="Every beacon drain has written in the last hour, as it arrives. The faded bar is the current minute, still filling."
         :option="minutesOption"
         :loading="loading"
         :height="280"
@@ -160,13 +214,13 @@ onBeforeUnmount(() => clearInterval(clock))
           <p class="hint">Distinct installs reporting each version.</p>
         </header>
         <p v-if="loading" class="muted small">Loading…</p>
-        <p v-else-if="!tick?.versions.length" class="muted small">Nothing reported yet.</p>
+        <p v-else-if="!summary?.versions.length" class="muted small">Nothing reported yet.</p>
         <table v-else class="data">
           <thead>
             <tr><th>Version</th><th>Installs</th></tr>
           </thead>
           <tbody>
-            <tr v-for="v in tick?.versions" :key="v.version">
+            <tr v-for="v in summary?.versions" :key="v.version">
               <td>{{ v.version }}</td>
               <td>{{ fmtInt(v.installs) }}</td>
             </tr>
@@ -180,43 +234,55 @@ onBeforeUnmount(() => clearInterval(clock))
         <div>
           <h2>Incoming beacons</h2>
           <p class="hint">
-            The newest {{ FEED_MAX }}, as drain writes them. Installs are shown by the first
-            eight characters of their id; the hashed client address is never sent to the page.
+            Each row is one beacon, pushed the moment drain writes it. Installs are shown by
+            the first eight characters of their id; the hashed client address never leaves
+            the server.
           </p>
         </div>
-        <button class="btn" @click="togglePause">{{ paused ? 'Resume' : 'Pause' }}</button>
+        <button class="btn" @click="togglePause">
+          {{ paused ? `Resume${held.length ? ` (${held.length} new)` : ''}` : 'Pause' }}
+        </button>
       </header>
+      <div class="filters" role="group" aria-label="Show">
+        <button class="chip" :class="{ on: !only }" @click="only = null">All</button>
+        <button
+          v-for="k in KINDS"
+          :key="k.name"
+          class="chip"
+          :class="[k.name, { on: only === k.name }]"
+          :title="k.about"
+          @click="only = only === k.name ? null : k.name"
+        >
+          {{ k.label }}
+        </button>
+      </div>
       <div class="scroll-x feed-scroll">
         <table class="data feed">
           <thead>
             <tr>
               <th>When</th>
-              <th>Beacon</th>
+              <th>What</th>
               <th>Install</th>
               <th>Version</th>
-              <th>Mode</th>
-              <th>Auth</th>
-              <th>Browser</th>
-              <th>OS</th>
-              <th>Containers</th>
+              <th>Details</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-if="!feed.length">
-              <td colspan="9" class="muted">
+            <tr v-if="!shown.length">
+              <td colspan="5" class="muted">
                 {{ loading ? 'Loading…' : 'Waiting for the next beacon…' }}
               </td>
             </tr>
-            <tr v-for="b in feed" :key="b.key">
+            <tr v-for="b in shown" :key="b.key" :class="{ fresh: fresh.has(b.key) }">
               <td :title="new Date(b.time).toLocaleString()">{{ ago(b.time) }}</td>
-              <td><span class="pill" :class="b.name">{{ b.name }}</span></td>
+              <td>
+                <span class="pill" :class="b.name" :title="kindOf(b.name)?.about">
+                  {{ kindOf(b.name)?.label ?? b.name }}
+                </span>
+              </td>
               <td class="mono">{{ b.install || '—' }}</td>
               <td>{{ b.version ?? '—' }}</td>
-              <td>{{ b.mode ?? '—' }}</td>
-              <td>{{ b.auth ?? '—' }}</td>
-              <td>{{ b.browser ?? '—' }}</td>
-              <td>{{ b.os ?? '—' }}</td>
-              <td>{{ fmtInt(b.containers) }}</td>
+              <td class="details">{{ details(b) }}</td>
             </tr>
           </tbody>
         </table>
@@ -232,17 +298,39 @@ onBeforeUnmount(() => clearInterval(clock))
 .status.live .dot { background: var(--good); animation: pulse 2s ease-in-out infinite; }
 .status.reconnecting .dot { background: var(--critical); }
 @keyframes pulse { 50% { opacity: 0.35; } }
-@media (prefers-reduced-motion: reduce) { .status.live .dot { animation: none; } }
 
 .grid.split { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
 @media (max-width: 1080px) { .grid.split { grid-template-columns: minmax(0, 1fr); } }
 
 .small { font-size: 13px; }
 .feed-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
+.chip {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.chip:hover { background: var(--hover); }
+.chip.on { background: var(--hover); color: var(--text-primary); }
+.chip.events.on { color: var(--series-1); }
+.chip.start.on { color: var(--series-2); }
+.chip.usage.on { color: var(--series-3); }
+
 .feed td { font-size: 13px; }
+/* Words, not figures: read left to right like any other text. */
+.feed th, .feed td { text-align: left; }
+.feed td.details { color: var(--text-secondary); white-space: nowrap; }
 /* The header stays put while the rows scroll, so a full feed does not stretch the page. */
 .feed-scroll { max-height: 560px; overflow-y: auto; margin-bottom: 12px; }
 .feed thead th { position: sticky; top: 0; background: var(--surface); }
+/* A row that just landed glows briefly, so new arrivals are easy to follow. */
+.feed tr.fresh td { animation: arrive 2.4s ease-out; }
+@keyframes arrive { from { background: var(--hover); } to { background: transparent; } }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
 .pill {
   display: inline-block;
@@ -250,9 +338,15 @@ onBeforeUnmount(() => clearInterval(clock))
   border-radius: 999px;
   font-size: 12px;
   font-weight: 500;
+  white-space: nowrap;
   background: var(--hover);
 }
 .pill.events { color: var(--series-1); }
 .pill.start { color: var(--series-2); }
 .pill.usage { color: var(--series-3); }
+
+@media (prefers-reduced-motion: reduce) {
+  .status.live .dot { animation: none; }
+  .feed tr.fresh td { animation: none; }
+}
 </style>

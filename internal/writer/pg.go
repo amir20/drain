@@ -2,12 +2,14 @@ package writer
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/amir20/drain/internal"
 	"github.com/lib/pq"
@@ -169,6 +171,7 @@ func (p *PostgresWriter) flush(events []internal.Event) {
 
 	_, err := p.db.Exec(insertBatch, pq.Array(times), pq.Array(names), pq.Array(clients), pq.Array(metadata))
 	if err == nil {
+		p.notify(events)
 		return
 	}
 	if len(times) == 1 {
@@ -176,12 +179,99 @@ func (p *PostgresWriter) flush(events []internal.Event) {
 		return
 	}
 	p.logger.Warnf("batch of %d failed, retrying one at a time: %v", len(times), err)
-	for i := range times {
+	written := make([]internal.Event, 0, len(events))
+	for i, e := range events {
 		if _, err := p.db.Exec(
 			"INSERT INTO beacon (time, name, client_id, metadata) VALUES ($1, $2, $3, $4)",
 			times[i], names[i], clients[i], metadata[i]); err != nil {
 			p.logger.Errorf("failed to insert event: %v", err)
+			continue
 		}
+		written = append(written, e)
+	}
+	p.notify(written)
+}
+
+// LiveChannel is the NOTIFY channel the dashboard's Live page listens on.
+const LiveChannel = "drain_beacon"
+
+// liveMaxString bounds every client-supplied string in a notification. A payload over
+// Postgres's 8000-byte limit is an error, and these fields come straight off the wire.
+const liveMaxString = 256
+
+// LiveBeacon is what one notification carries: the handful of fields the Live page
+// shows, and nothing it does not - in particular not remoteIP. The browser user agent
+// goes as-is; the dashboard parses it the same way drain_browser/drain_os do.
+type LiveBeacon struct {
+	Time          time.Time `json:"time"`
+	Name          string    `json:"name"`
+	Client        string    `json:"client"`
+	Version       string    `json:"version,omitempty"`
+	Mode          string    `json:"mode,omitempty"`
+	Auth          string    `json:"auth,omitempty"`
+	UserAgent     string    `json:"ua,omitempty"`
+	Containers    int       `json:"containers,omitempty"`
+	ActiveMinutes string    `json:"activeMinutes,omitempty"`
+}
+
+func liveBeacon(e internal.Event) LiveBeacon {
+	b := LiveBeacon{
+		// Postgres keeps microseconds, so the dashboard's seed read and this payload agree
+		// on the instant - it is part of how the dashboard recognises a beacon it has.
+		Time:       e.CreatedAt.Round(time.Microsecond),
+		Name:       clip(e.Name),
+		Client:     clip(e.ServerID),
+		Version:    clip(e.Version),
+		Mode:       clip(e.Mode),
+		Auth:       clip(e.AuthProvider),
+		UserAgent:  clip(e.Browser),
+		Containers: e.RunningContainers,
+	}
+	// Only the usage beacon has it, and it is not a named field: Dozzle added it later.
+	var extra struct {
+		ActiveMinutes string `json:"activeMinutes"`
+	}
+	if len(e.Raw) > 0 && json.Unmarshal(e.Raw, &extra) == nil {
+		b.ActiveMinutes = clip(extra.ActiveMinutes)
+	}
+	return b
+}
+
+// clip cuts s to at most liveMaxString bytes without splitting a UTF-8 sequence.
+func clip(s string) string {
+	if len(s) <= liveMaxString {
+		return s
+	}
+	s = s[:liveMaxString]
+	for len(s) > 0 && !utf8.ValidString(s) {
+		s = s[:len(s)-1]
+	}
+	return s
+}
+
+const notifyBatch = `SELECT pg_notify('` + LiveChannel + `', p) FROM unnest($1::text[]) AS p`
+
+// notify announces beacons that are already committed, one notification each, so a
+// listener can read them straight off the payload instead of polling the table.
+//
+// It is a separate statement after the insert rather than a trigger on beacon, on
+// purpose: a failure here - a full notification queue behind a stalled listener, say -
+// must never cost a beacon. Nobody listening costs next to nothing, since Postgres
+// drops a notification as soon as every listener has read it.
+func (p *PostgresWriter) notify(events []internal.Event) {
+	if len(events) == 0 {
+		return
+	}
+	payloads := make([]string, 0, len(events))
+	for _, e := range events {
+		b, err := json.Marshal(liveBeacon(e))
+		if err != nil {
+			continue
+		}
+		payloads = append(payloads, string(b))
+	}
+	if _, err := p.db.Exec(notifyBatch, pq.Array(payloads)); err != nil {
+		p.logger.Warnf("failed to notify %d beacon(s): %v", len(payloads), err)
 	}
 }
 
