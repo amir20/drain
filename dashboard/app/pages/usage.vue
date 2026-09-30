@@ -4,13 +4,14 @@ import { baseOptions, fmtInt, fmtPct, ordinalRamp } from '~/composables/useChart
 definePageMeta({ middleware: 'auth' })
 useHead({ title: 'Usage · Dozzle analytics' })
 
-const { data: raw, pending } = useRangedFetch<any>('/api/usage')
+const { data: raw, pending, error, refresh } = useRangedFetch<any>('/api/usage')
 const { theme, version } = useChartTheme()
 // useRangedFetch cannot infer the response shape, so read it untyped in one place.
 const data = computed<any>(() => raw.value)
 
 const installs = computed<number>(() => data.value?.installs ?? 0)
-const empty = computed(() => !pending.value && installs.value === 0)
+// A failed request leaves `data` empty too; that must not read as "no beacons".
+const empty = computed(() => !pending.value && !error.value && installs.value === 0)
 
 /**
  * Horizontal bars in one hue. `value` is what the bar measures; the tooltip carries the
@@ -180,14 +181,24 @@ const localeOption = computed(() =>
   <div>
     <p class="section-title">What people do in Dozzle</p>
 
-    <p v-if="empty" class="hint muted">
-      No usage beacons in this range yet. Dozzle sends one per install per day from the
-      release that adds them.
+    <p v-if="error" class="hint">
+      Could not load usage for this range: {{ error.statusMessage || error.message }}.
+      <button class="btn" @click="() => refresh()">Try again</button>
+    </p>
+
+    <p v-else-if="empty" class="hint muted">
+      No usage reports in this range yet. Only Dozzle v11.1.3 and later send them, once per
+      install per day, the first one 24 hours after the server starts - and only when
+      someone used the UI that day.
     </p>
 
     <template v-else>
       <div class="grid cols-4">
-        <StatTile label="Reporting installs" :value="fmtInt(installs)" hint="sent a usage beacon" />
+        <StatTile
+          label="Reporting installs"
+          :value="fmtInt(installs)"
+          hint="sent a usage report (v11.1.3+, daily)"
+        />
         <StatTile
           label="Cloud connect rate"
           :value="

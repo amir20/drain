@@ -31,6 +31,10 @@ export function db(): pg.Pool {
       // the cost and the rest are served in ~1ms.
       statement_timeout: 60_000,
     })
+    // An idle client whose connection drops (a database restart, a network blip) emits
+    // 'error' on the pool, and an EventEmitter 'error' with no listener throws and kills
+    // the process. The pool discards that client by itself; the next query opens another.
+    pool.on('error', (err) => console.error('idle database client failed', err))
   }
   return pool
 }
