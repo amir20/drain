@@ -232,7 +232,7 @@ export function latestState(range: Range): { sql: string; params: [string, strin
   if (range.endsToday) {
     return {
       sql: `SELECT metadata FROM client_lifecycle
-             WHERE ever_active
+             WHERE ever_active AND NOT noise
                AND last_event_day >= $1::date AND last_event_day <= $2::date`,
       params: [range.dayFrom, range.to],
     }

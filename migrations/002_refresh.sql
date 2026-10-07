@@ -70,14 +70,15 @@ BEGIN
   END IF;
 
   INSERT INTO client_lifecycle (client_id, first_event_day, last_event_day,
-                                first_event_week, ever_active, metadata)
+                                first_event_week, ever_active, metadata, first_ip)
   SELECT DISTINCT ON (client_id)
          client_id,
          min(day) OVER (PARTITION BY client_id),
          max(day) OVER (PARTITION BY client_id),
          date_trunc('week', min(day) OVER (PARTITION BY client_id))::date,
          true,
-         metadata
+         metadata,
+         first_value(metadata ->> 'remoteIP') OVER (PARTITION BY client_id ORDER BY day)
   FROM client_daily
   WHERE day >= v_from
   ORDER BY client_id, day DESC
@@ -87,7 +88,12 @@ BEGIN
         first_event_week = date_trunc('week',
                              LEAST(client_lifecycle.first_event_day, EXCLUDED.first_event_day))::date,
         ever_active      = true,
-        metadata         = EXCLUDED.metadata;
+        metadata         = EXCLUDED.metadata,
+        -- Only an earlier first day moves the first IP. A row from before first_ip
+        -- existed keeps NULL until a full run, rather than taking a later day's IP.
+        first_ip         = CASE WHEN client_lifecycle.first_event_day IS NULL
+                                  OR EXCLUDED.first_event_day < client_lifecycle.first_event_day
+                                THEN EXCLUDED.first_ip ELSE client_lifecycle.first_ip END;
 
   -- Installs that only ever announced themselves and died: ~4x the active population.
   -- They are the launch-only funnel, not cohort members, so this never sets ever_active
@@ -102,6 +108,17 @@ BEGIN
                                 EXCLUDED.first_start_day),
         last_start_day  = GREATEST(COALESCE(client_lifecycle.last_start_day, EXCLUDED.last_start_day),
                                    EXCLUDED.last_start_day);
+
+  -- Noise (migrations/009): 100+ installs first opened from one IP on one day. Only ever
+  -- set, never cleared: a burst does not stop having happened. A full run TRUNCATEs and
+  -- re-derives it from all of history.
+  UPDATE client_lifecycle l SET noise = true
+  FROM (
+    SELECT first_ip, first_event_day FROM client_lifecycle
+    WHERE ever_active AND first_ip IS NOT NULL AND first_event_day >= v_from
+    GROUP BY 1, 2 HAVING count(*) >= 100
+  ) b
+  WHERE l.first_ip = b.first_ip AND l.first_event_day = b.first_event_day AND NOT l.noise;
 
   ANALYZE client_lifecycle;
   PERFORM drain_note_phase('phase_lifecycle', v_phase);
@@ -128,7 +145,7 @@ BEGIN
          max(drain_int(d.metadata, 'clients')) OVER w,
          l.first_event_day
   FROM client_daily d
-  JOIN client_lifecycle l ON l.client_id = d.client_id
+  JOIN client_lifecycle l ON l.client_id = d.client_id AND NOT l.noise
   WHERE d.day >= v_week_from
   WINDOW w AS (PARTITION BY date_trunc('week', d.day), d.client_id)
   ORDER BY date_trunc('week', d.day), d.client_id, d.day DESC;
@@ -157,7 +174,9 @@ BEGIN
 
   INSERT INTO active_counts_daily (day, dau, wau, mau, new_installs, resurrected, churned, first_launches)
   WITH d AS (
-    SELECT client_id, day FROM client_daily WHERE day >= v_from - 28
+    SELECT client_id, day FROM client_daily d
+    WHERE day >= v_from - 28
+      AND NOT EXISTS (SELECT 1 FROM client_lifecycle l WHERE l.client_id = d.client_id AND l.noise)
   ),
   w(win) AS (VALUES (1), (7), (28)),
   marked AS (
@@ -212,11 +231,11 @@ BEGIN
   ),
   activated AS (
     SELECT first_event_day AS day, count(*)::int AS n FROM client_lifecycle
-    WHERE ever_active AND first_event_day IS NOT NULL GROUP BY 1
+    WHERE ever_active AND NOT noise AND first_event_day IS NOT NULL GROUP BY 1
   ),
   launched AS (
     SELECT first_start_day AS day, count(*)::int AS n FROM client_lifecycle
-    WHERE first_start_day IS NOT NULL GROUP BY 1
+    WHERE first_start_day IS NOT NULL AND NOT noise GROUP BY 1
   ),
   grid AS (SELECT generate_series(v_from, v_to, INTERVAL '1 day')::date AS day)
   SELECT g.day,
@@ -289,14 +308,14 @@ BEGIN
   INSERT INTO cohort_retention_weekly (cohort_week, week_index, cohort_size, actives, retained)
   WITH cohorts AS (
     SELECT first_event_week AS cohort_week, count(*)::int AS cohort_size
-    FROM client_lifecycle WHERE ever_active GROUP BY 1
+    FROM client_lifecycle WHERE ever_active AND NOT noise GROUP BY 1
   ),
   activity AS (
     SELECT l.first_event_week AS cohort_week,
            ((w.week - l.first_event_week) / 7)::smallint AS week_index,
            count(*)::int AS actives
     FROM client_weekly w
-    JOIN client_lifecycle l ON l.client_id = w.client_id AND l.ever_active
+    JOIN client_lifecycle l ON l.client_id = w.client_id AND l.ever_active AND NOT l.noise
     WHERE w.week >= l.first_event_week AND (w.week - l.first_event_week) / 7 <= 52
     GROUP BY 1, 2
   ),
@@ -316,7 +335,7 @@ BEGIN
     SELECT first_event_week AS cohort_week,
            LEAST((date_trunc('week', last_event_day)::date - first_event_week) / 7, 52) AS last_index,
            count(*)::int AS installs
-    FROM client_lifecycle WHERE ever_active GROUP BY 1, 2
+    FROM client_lifecycle WHERE ever_active AND NOT noise GROUP BY 1, 2
   ),
   retained AS (
     SELECT g.cohort_week, g.week_index, sum(r.installs)::int AS retained
@@ -352,8 +371,9 @@ BEGIN
 
   INSERT INTO active_counts_hourly (hour, active_installs, beacons)
   SELECT hour, count(*)::int, sum(beacons)
-  FROM hourly_client_events
+  FROM hourly_client_events h
   WHERE client_id <> '' AND hour >= v_hour_from
+    AND NOT EXISTS (SELECT 1 FROM client_lifecycle l WHERE l.client_id = h.client_id AND l.noise)
   GROUP BY 1
   ON CONFLICT (hour) DO UPDATE
     SET active_installs = EXCLUDED.active_installs, beacons = EXCLUDED.beacons;

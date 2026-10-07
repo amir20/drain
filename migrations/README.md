@@ -42,6 +42,7 @@ edited one is re-applied.
 | `006_agent_features.sql` | adds the count-based features (`agents`, `uiAgents`, `remoteSockets`) to `drain_feature()` |
 | `007_usage.sql` | `drain_usage`, `drain_map_sum` and `drain_map_int` for the daily `usage` beacon and the map-shaped install facts, plus `drain_feature` cases for the new adoption flags |
 | `008_unbounded_retention.sql` | adds `retained` to the cohort grid: installs that opened the UI in week N or any week after |
+| `009_noise.sql` | `first_ip` and `noise` on `client_lifecycle`: installs from a burst of 100+ new ids on one IP in one day, which every derived count skips |
 
 ## Recompressing beacon
 

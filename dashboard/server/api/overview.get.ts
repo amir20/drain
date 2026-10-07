@@ -85,8 +85,10 @@ export default cachedAnalytics(async (event) => {
                 count(*) FILTER (WHERE ever_active)::int     AS became_active,
                 count(*) FILTER (WHERE NOT ever_active)::int AS launch_only
            FROM client_lifecycle
+          -- Installs from a burst of ids on one IP are not people (migrations/009).
+          WHERE NOT noise
           -- $2 is the Monday of the last complete week, so take it through its Sunday.
-          WHERE first_start_day >= $1 AND first_start_day < $2::date + 7
+            AND first_start_day >= $1 AND first_start_day < $2::date + 7
           GROUP BY 1 ORDER BY 1`,
         [wk.from, wk.to],
       ),
@@ -95,7 +97,8 @@ export default cachedAnalytics(async (event) => {
         `SELECT count(*) FILTER (WHERE ever_active)::int     AS ever_active,
                 count(*) FILTER (WHERE NOT ever_active)::int AS launch_only,
                 count(*) FILTER (WHERE ever_active AND last_event_day > CURRENT_DATE - 28)::int AS active_28d
-           FROM client_lifecycle`,
+           FROM client_lifecycle
+          WHERE NOT noise`,
       ),
     ])
 
