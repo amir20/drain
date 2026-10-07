@@ -43,6 +43,7 @@ edited one is re-applied.
 | `007_usage.sql` | `drain_usage`, `drain_map_sum` and `drain_map_int` for the daily `usage` beacon and the map-shaped install facts, plus `drain_feature` cases for the new adoption flags |
 | `008_unbounded_retention.sql` | adds `retained` to the cohort grid: installs that opened the UI in week N or any week after |
 | `009_noise.sql` | `first_ip` and `noise` on `client_lifecycle`: installs from a burst of 100+ new ids on one IP in one day, which every derived count skips |
+| `010_clean_daily.sql` | `client_daily_clean`: the daily source minus noise installs, which the dashboard reads for ranges up to 31 days |
 
 ## Recompressing beacon
 

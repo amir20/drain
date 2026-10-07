@@ -207,7 +207,8 @@ export function snapshot(range: Range): {
       : // A view over the continuous aggregate. Group on the date, but filter on the raw
         // timestamptz (migrations/004): `day` is `day::date`, and a cast on the indexed
         // column costs chunk exclusion - 4058ms versus 352ms for one 30-day GROUP BY.
-        { table: 'client_daily', timeCol: 'day', filterCol: 'bucket_ts', from: range.dayFrom }
+        // The _clean view drops noise installs, as the weekly rollup does (migrations/010).
+        { table: 'client_daily_clean', timeCol: 'day', filterCol: 'bucket_ts', from: range.dayFrom }
 
   return {
     ...base,
