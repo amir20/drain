@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.6](https://github.com/amir20/drain/compare/v1.2.5...v1.2.6) (2026-10-07)
+
+### Bug Fixes
+
+* **migrations:** add the retained column in its own migration ([cb65231](https://github.com/amir20/drain/commit/cb65231ed241bf4ecaa7c51915e3b9a3e3a09e44))
+
 ## [1.2.5](https://github.com/amir20/drain/compare/v1.2.4...v1.2.5) (2026-10-07)
 
 ### Features
