@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.9](https://github.com/amir20/drain/compare/v1.2.8...v1.2.9) (2026-10-07)
+
+### Bug Fixes
+
+* **dashboard:** make browsers revalidate analytics responses ([a492ac3](https://github.com/amir20/drain/commit/a492ac393c8ba26641b9a3ee0a80056d3bf8957c))
+
 ## [1.2.8](https://github.com/amir20/drain/compare/v1.2.7...v1.2.8) (2026-10-07)
 
 ### Bug Fixes
