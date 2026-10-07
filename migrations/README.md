@@ -41,6 +41,7 @@ edited one is re-applied.
 | `005_storage.sql` | compresses the daily aggregates after 90 days, drops unread indexes, and re-segments `beacon` compression; adds `drain_recompress_beacon()` |
 | `006_agent_features.sql` | adds the count-based features (`agents`, `uiAgents`, `remoteSockets`) to `drain_feature()` |
 | `007_usage.sql` | `drain_usage`, `drain_map_sum` and `drain_map_int` for the daily `usage` beacon and the map-shaped install facts, plus `drain_feature` cases for the new adoption flags |
+| `008_unbounded_retention.sql` | adds `retained` to the cohort grid: installs that opened the UI in week N or any week after |
 
 ## Recompressing beacon
 

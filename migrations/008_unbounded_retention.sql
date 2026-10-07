@@ -1,0 +1,13 @@
+-- Unbounded retention on the cohort grid.
+--
+-- Two readings of "retained" at week N, both counting only `events` beacons (someone
+-- opened the UI):
+--   actives  - opened it during week N itself. Strict; punishes a tool people only open
+--              when something breaks.
+--   retained - opened it during week N or any week after. Unbounded retention: an
+--              install counts until the last week it was ever opened. What the
+--              dashboard shows.
+--
+-- Its own file rather than an edit to 001: re-applying 001 would replace client_daily
+-- with fewer columns than 004 gave it, which Postgres refuses.
+ALTER TABLE cohort_retention_weekly ADD COLUMN IF NOT EXISTS retained integer NOT NULL DEFAULT 0;
