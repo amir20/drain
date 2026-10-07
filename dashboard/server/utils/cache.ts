@@ -43,7 +43,7 @@ const refreshStamp = defineCachedFunction(
  * importantly, a reordered query string cannot become a second copy of the same answer.
  */
 export function cachedAnalytics<T>(handler: (event: H3Event) => Promise<T>) {
-  return defineCachedEventHandler(handler, {
+  const cached = defineCachedEventHandler(handler, {
     // A backstop, not the mechanism: the stamp is what invalidates. This only bounds how
     // long a preset range - whose `to` is derived from the current date - could survive
     // if the refresh job ever stopped running.
@@ -57,5 +57,18 @@ export function cachedAnalytics<T>(handler: (event: H3Event) => Promise<T>) {
       // Storage keys are paths; keep them to characters that cannot introduce a level.
       return parts.join('_').replace(/[^A-Za-z0-9_-]/g, '')
     },
+  })
+
+  // Nitro stamps every cached response with `s-maxage=3600, stale-while-revalidate`.
+  // s-maxage is for shared caches, so a browser is left to guess freshness from
+  // last-modified, and a bare stale-while-revalidate lets it show the old body while it
+  // refetches. Browsers guessed differently: one showed a refresh's new numbers and
+  // another kept the old ones for the same URL. The server cache above is the only one
+  // that knows when a refresh lands, so browsers must always ask; the etag keeps that a
+  // 304 when nothing changed.
+  return defineEventHandler(async (event) => {
+    const body = await cached(event)
+    setResponseHeader(event, 'cache-control', 'private, no-cache')
+    return body
   })
 }
