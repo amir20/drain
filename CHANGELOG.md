@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.8](https://github.com/amir20/drain/compare/v1.2.7...v1.2.8) (2026-10-07)
+
+### Bug Fixes
+
+* **dashboard:** drop noise installs from ranges up to 31 days ([617c7bb](https://github.com/amir20/drain/commit/617c7bb80e3d59da0ef5250681c12c16706baa0e))
+
 ## [1.2.7](https://github.com/amir20/drain/compare/v1.2.6...v1.2.7) (2026-10-07)
 
 ### Features
