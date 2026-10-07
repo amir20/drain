@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.7](https://github.com/amir20/drain/compare/v1.2.6...v1.2.7) (2026-10-07)
+
+### Features
+
+* **analytics:** leave installs from one-IP id bursts out of every count ([660550a](https://github.com/amir20/drain/commit/660550ac34c1bd70cdbb7e138ee356bbdb8e7025))
+
 ## [1.2.6](https://github.com/amir20/drain/compare/v1.2.5...v1.2.6) (2026-10-07)
 
 ### Bug Fixes
