@@ -240,13 +240,24 @@ CREATE TABLE IF NOT EXISTS active_counts_hourly (
 
 -- The full cohort grid, so the retention table, the average curve and the W1/W4/W12
 -- trend are all one small scan.
+--
+-- Two readings of "retained" at week N, both counting only `events` beacons (someone
+-- opened the UI):
+--   actives  - opened it during week N itself. Strict; punishes a tool people only open
+--              when something breaks.
+--   retained - opened it during week N or any week after. Unbounded retention: an
+--              install counts until the last week it was ever opened. What the
+--              dashboard shows.
 CREATE TABLE IF NOT EXISTS cohort_retention_weekly (
   cohort_week date     NOT NULL,
   week_index  smallint NOT NULL,
   cohort_size integer  NOT NULL,
   actives     integer  NOT NULL,
+  retained    integer  NOT NULL DEFAULT 0,
   PRIMARY KEY (cohort_week, week_index)
 );
+
+ALTER TABLE cohort_retention_weekly ADD COLUMN IF NOT EXISTS retained integer NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS weekly_lifecycle (
   week         date PRIMARY KEY,

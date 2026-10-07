@@ -1,6 +1,11 @@
 /**
  * Cohort retention.
  *
+ * Unbounded: an install is retained at week N if it opened the UI (sent an `events`
+ * beacon) in week N or any week after. The strict "opened it in week N itself" reading is
+ * returned alongside for the tooltip; for a tool people open when something breaks it
+ * mostly measures how often things break.
+ *
  * The whole grid is precomputed into `cohort_retention_weekly` (a few thousand rows),
  * so the table, the average curve and the W1/W4/W12 trend all come out of one small
  * scan instead of re-deriving every install's activation date per panel.
@@ -16,17 +21,18 @@ export default cachedAnalytics(async (event) => {
   const wk = weeklyWindow(range)
 
   const [grid, curve, tenure] = await Promise.all([
-    query<{ cohort_week: string; cohort_size: number; week_index: number; actives: number }>(
-      `SELECT cohort_week, cohort_size, week_index, actives
+    query<{ cohort_week: string; cohort_size: number; week_index: number; retained: number }>(
+      `SELECT cohort_week, cohort_size, week_index, retained
          FROM cohort_retention_weekly
         WHERE cohort_week BETWEEN $1 AND $2 AND week_index <= $3
         ORDER BY cohort_week DESC, week_index`,
       [wk.from, range.to, MAX_WEEK_INDEX],
     ),
 
-    query<{ week_index: number; pct: number; cohorts: number }>(
+    query<{ week_index: number; pct: number; strict_pct: number; cohorts: number }>(
       `SELECT week_index,
-              round(avg(100.0 * actives / cohort_size), 1) AS pct,
+              round(avg(100.0 * retained / cohort_size), 1) AS pct,
+              round(avg(100.0 * actives / cohort_size), 1) AS strict_pct,
               count(*)::int AS cohorts
          FROM cohort_retention_weekly
         WHERE cohort_week BETWEEN $1 AND $2
@@ -75,7 +81,7 @@ export default cachedAnalytics(async (event) => {
       }
       byCohort.set(r.cohort_week, row)
     }
-    row.weeks[r.week_index] = r.cohort_size ? (100 * r.actives) / r.cohort_size : null
+    row.weeks[r.week_index] = r.cohort_size ? (100 * r.retained) / r.cohort_size : null
   }
 
   return {
@@ -90,7 +96,7 @@ export default cachedAnalytics(async (event) => {
       .map((r) => ({
         week: r.cohort_week,
         index: r.week_index,
-        pct: r.cohort_size ? (100 * r.actives) / r.cohort_size : null,
+        pct: r.cohort_size ? (100 * r.retained) / r.cohort_size : null,
       }))
       .sort((a, b) => a.week.localeCompare(b.week)),
   }

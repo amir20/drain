@@ -286,7 +286,7 @@ BEGIN
   -- should never wait on the rebuild.
   DELETE FROM cohort_retention_weekly;
 
-  INSERT INTO cohort_retention_weekly (cohort_week, week_index, cohort_size, actives)
+  INSERT INTO cohort_retention_weekly (cohort_week, week_index, cohort_size, actives, retained)
   WITH cohorts AS (
     SELECT first_event_week AS cohort_week, count(*)::int AS cohort_size
     FROM client_lifecycle WHERE ever_active GROUP BY 1
@@ -308,10 +308,26 @@ BEGIN
     FROM cohorts c
     CROSS JOIN generate_series(0, 52) AS i
     WHERE c.cohort_week + 7 * (i + 1) <= date_trunc('week', CURRENT_DATE)::date
+  ),
+  -- Unbounded retention: an install is retained at week N if it opened the UI in week N
+  -- or any week after, i.e. if the week of its last events beacon is N or later. The
+  -- last week may be the current, partial one: a later open is a later open.
+  reach AS (
+    SELECT first_event_week AS cohort_week,
+           LEAST((date_trunc('week', last_event_day)::date - first_event_week) / 7, 52) AS last_index,
+           count(*)::int AS installs
+    FROM client_lifecycle WHERE ever_active GROUP BY 1, 2
+  ),
+  retained AS (
+    SELECT g.cohort_week, g.week_index, sum(r.installs)::int AS retained
+    FROM grid g
+    JOIN reach r ON r.cohort_week = g.cohort_week AND r.last_index >= g.week_index
+    GROUP BY 1, 2
   )
-  SELECT g.cohort_week, g.week_index, g.cohort_size, COALESCE(a.actives, 0)
+  SELECT g.cohort_week, g.week_index, g.cohort_size, COALESCE(a.actives, 0), COALESCE(r.retained, 0)
   FROM grid g
-  LEFT JOIN activity a ON a.cohort_week = g.cohort_week AND a.week_index = g.week_index;
+  LEFT JOIN activity a ON a.cohort_week = g.cohort_week AND a.week_index = g.week_index
+  LEFT JOIN retained r ON r.cohort_week = g.cohort_week AND r.week_index = g.week_index;
 
   PERFORM drain_note_phase('phase_cohorts', v_phase);
   COMMIT;

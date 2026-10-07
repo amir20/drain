@@ -33,11 +33,11 @@ const curveOption = computed(() => {
       ...baseOptions(t).tooltip,
       formatter: (p: any) => {
         const r = rows[p[0].dataIndex]
-        return `<b>Week ${r.week_index}</b><br>${fmtPct(r.pct)} still active<br><span style="opacity:.7">across ${r.cohorts} cohorts</span>`
+        return `<b>Week ${r.week_index}</b><br>${fmtPct(r.pct)} opened Dozzle in week ${r.week_index} or later<br>${fmtPct(r.strict_pct)} opened it in week ${r.week_index} itself<br><span style="opacity:.7">across ${r.cohorts} cohorts</span>`
       },
     },
     series: [
-      barSeries('Installs still active', t.series[0]!, rows.map((r: any) => r.pct), {
+      barSeries('Installs retained', t.series[0]!, rows.map((r: any) => r.pct), {
         label: {
           show: true,
           position: 'top',
@@ -123,7 +123,7 @@ function heat(pct: number | null) {
     <div class="grid cols-2">
       <ChartCard
         title="Average retention curve"
-        hint="The share of a cohort still active N weeks after install, averaged over every cohort in range that has actually lived that long."
+        hint="A cohort is every install whose UI was first opened that week (W0). WN is the share that opened it again in week N or any week after, averaged over every cohort in range that has lived N weeks."
         :option="curveOption"
         :loading="pending"
         :height="300"
@@ -151,9 +151,10 @@ function heat(pct: number | null) {
       <header>
         <h2>Weekly cohort retention</h2>
         <p class="hint">
-          Each row is the set of installs whose first events beacon landed that week.
-          W<em>N</em> is the share still reporting N weeks later. Read down a column to see
-          whether newer cohorts retain better than older ones.
+          Each row is the set of installs whose UI was first opened that week (the first
+          events beacon; installs that only ever started are not counted). W<em>N</em> is
+          the share that opened it again in week N or any week after. Read down a column
+          to see whether newer cohorts retain better than older ones.
         </p>
       </header>
       <div class="scroll-x">
