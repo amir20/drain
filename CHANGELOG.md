@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2.5](https://github.com/amir20/drain/compare/v1.2.4...v1.2.5) (2026-10-07)
+
+### Features
+
+* **retention:** measure unbounded retention ([dda6c7d](https://github.com/amir20/drain/commit/dda6c7ddbe056e83a55cd622ba60d115e931cfeb))
+
+### Bug Fixes
+
+* **deps:** update all non-major dependencies ([#165](https://github.com/amir20/drain/issues/165)) ([a42fad9](https://github.com/amir20/drain/commit/a42fad996a2d8a832fe18634d7aaad944c9db2fe))
+
 ## [1.2.4](https://github.com/amir20/drain/compare/v1.2.3...v1.2.4) (2026-09-30)
 
 ### Bug Fixes
