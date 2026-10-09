@@ -6,14 +6,5 @@
     "group:allNonMajor",
     ":automergeMinor"
   ],
-  "rangeStrategy": "bump",
-  "packageRules": [
-    {
-      "description": "streamlit pins pyarrow <26; drop once it allows v26",
-      "matchPackageNames": [
-        "pyarrow"
-      ],
-      "allowedVersions": "<26"
-    }
-  ]
+  "rangeStrategy": "bump"
 }

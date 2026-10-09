@@ -11,7 +11,7 @@ import (
 
 // IPHasher turns a client address into a stable, opaque token so the raw IP is never
 // written to the database. The same address always yields the same token, which is all
-// the notebooks need to fall back on when a beacon has no serverID.
+// the analytics need to fall back on when a beacon has no serverID.
 //
 // With a key it is HMAC-SHA256. Without one it is plain SHA-256, which only hides the
 // address from a casual reader: the whole IPv4 space hashes in seconds, so anyone with
