@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.14.8"
 dependencies = [
     "plotly>=7.1.0",
-    "polars>=1.44.2",
+    "polars>=2.0.0",
     "pyarrow>=25.0.1",  # Override streamlit's constraint
     "streamlit>=1.65.0",
     "watchdog>=6.0.0",
