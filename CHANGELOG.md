@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.10](https://github.com/amir20/drain/compare/v1.2.9...v1.2.10) (2026-10-10)
+
+### Bug Fixes
+
+* **deps:** update all non-major dependencies ([#166](https://github.com/amir20/drain/issues/166)) ([204b875](https://github.com/amir20/drain/commit/204b875faa48b7a3f9b6c15ff9eb0c88eb6f657a))
+* **deps:** update dependency polars to v2 ([7c5f49a](https://github.com/amir20/drain/commit/7c5f49a9ce2fd6ab275c5d466fb4398d12d49f81))
+* **migrations:** restore drain_feature after 001 was re-applied ([134f11f](https://github.com/amir20/drain/commit/134f11f05060eeeeb9e65de0b290caace699ef16))
+
 ## [1.2.9](https://github.com/amir20/drain/compare/v1.2.8...v1.2.9) (2026-10-07)
 
 ### Bug Fixes
