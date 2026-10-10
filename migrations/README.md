@@ -44,6 +44,7 @@ edited one is re-applied.
 | `008_unbounded_retention.sql` | adds `retained` to the cohort grid: installs that opened the UI in week N or any week after |
 | `009_noise.sql` | `first_ip` and `noise` on `client_lifecycle`: installs from a burst of 100+ new ids on one IP in one day, which every derived count skips |
 | `010_clean_daily.sql` | `client_daily_clean`: the daily source minus noise installs, which the dashboard reads for ranges up to 31 days |
+| `011_restore_feature.sql` | restores `drain_feature` to its 007 definition after a re-applied `001` reset it |
 
 ## Recompressing beacon
 
