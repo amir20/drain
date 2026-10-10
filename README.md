@@ -18,7 +18,6 @@ Dozzle install ──POST /event──▶ drain (Go) ──▶ TimescaleDB ─�
 | `init/01_init.sql` | first-boot schema. Only runs on an empty Postgres volume |
 | `migrations/` | everything added after the first deploy, applied by `drain -migrate` |
 | `dashboard/` | the Nuxt analytics dashboard |
-| `notebooks/` | ad-hoc Polars analysis over the Parquet archive. drain stopped writing Parquet, so the archive no longer grows |
 | `grafana/` | the superseded Grafana dashboards, kept as a reference for the SQL |
 
 ## Running locally
@@ -83,7 +82,7 @@ Client IPs are never stored raw: beacon writes `metadata.remoteIP` as HMAC-SHA25
 first `X-Forwarded-For` entry, keyed by `DRAIN_IP_HASH_KEY_FILE` (or `DRAIN_IP_HASH_KEY`).
 Without a key it falls back to plain SHA-256 and logs a warning, since the IPv4 space is
 small enough to brute-force. Changing the key changes every token, so IP-derived
-identities in the notebooks restart from that point.
+identities in the analytics restart from that point.
 
 Swarm secrets are immutable and cannot be removed while a service uses one, so rotation
 is: create `…_v2`, bump the name in `docker-compose.prod.yml`, deploy, then
