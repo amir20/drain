@@ -2,6 +2,7 @@ package internal
 
 import (
 	"encoding/json"
+	"maps"
 	"time"
 )
 
@@ -60,8 +61,6 @@ func (e Event) Metadata() ([]byte, error) {
 	if err := json.Unmarshal(known, &fields); err != nil {
 		return nil, err
 	}
-	for k, v := range fields {
-		merged[k] = v
-	}
+	maps.Copy(merged, fields)
 	return json.Marshal(merged)
 }
