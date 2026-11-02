@@ -10,11 +10,11 @@
     "postinstall": "nuxt prepare",
     "typecheck": "nuxt typecheck"
   },
-  "packageManager": "bun@1.4.3",
+  "packageManager": "bun@1.4.4",
   "dependencies": {
     "echarts": "^6.1.0",
-    "nuxt": "^4.6.2",
-    "nuxt-auth-utils": "^0.5.32",
+    "nuxt": "^4.6.3",
+    "nuxt-auth-utils": "^0.6.0",
     "pg": "^8.23.1",
     "vue": "^3.5.44",
     "vue-echarts": "^8.3.2",
@@ -23,6 +23,6 @@
   "devDependencies": {
     "@types/pg": "^8.23.1",
     "typescript": "^7.0.2",
-    "vue-tsc": "^3.3.13"
+    "vue-tsc": "^3.3.14"
   }
 }
