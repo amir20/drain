@@ -36,6 +36,17 @@ export const GROUPS = [
   { key: 'images', label: 'Image updates', keys: ['image.check', 'image.update'] },
   { key: 'alerts', label: 'Alerts sent', keys: ['notify.log', 'notify.event', 'notify.metric'] },
   { key: 'rules', label: 'Alert rules edited', keys: ['rules.create', 'rules.edit'] },
+  {
+    key: 'mcp',
+    label: 'MCP tool calls',
+    keys: [
+      'mcp.list_containers',
+      'mcp.get_container_logs',
+      'mcp.search_container_logs',
+      'mcp.list_hosts',
+      'mcp.get_container_stats',
+    ],
+  },
 ] as const
 
 export const FUNNELS = {

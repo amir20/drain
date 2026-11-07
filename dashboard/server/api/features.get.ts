@@ -33,6 +33,10 @@ const EVENTS_BEACON_SINCE: string | null = null
 // the four above they read as a floor that climbs as the base upgrades.
 const INSTALL_FACTS_SINCE: string | null = null
 
+// TODO: set to the first Dozzle release whose beacons carry hasMCP. Older installs
+// never send it, so like the ones above it reads as a floor that climbs on upgrade.
+const MCP_SINCE: string | null = null
+
 export const FEATURES = [
   { key: 'hasActions', label: 'Container actions', short: 'Actions' },
   { key: 'auth', label: 'Authentication', short: 'Auth' },
@@ -51,6 +55,7 @@ export const FEATURES = [
   { key: 'privateAgents', label: 'Private agent certificate', short: 'Private cert', since: INSTALL_FACTS_SINCE },
   { key: 'labels', label: 'dev.dozzle.* labels', short: 'Labels', since: INSTALL_FACTS_SINCE },
   { key: 'multiUser', label: 'More than one user', short: 'Multi-user', since: INSTALL_FACTS_SINCE },
+  { key: 'hasMCP', label: 'MCP endpoint', short: 'MCP', since: MCP_SINCE },
 ] as const
 
 /**
